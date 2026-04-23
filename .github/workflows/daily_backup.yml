@@ -35,6 +35,13 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          # 建立目錄以防萬一，避免 git add 報錯
+          mkdir -p backups
           git add backups/
-          git commit -m "Auto-backup: $(date +'%Y-%m-%d')" || echo "No changes to commit"
-          git push
+          # 檢查是否有變動需要 commit
+          if git diff --staged --quiet; then
+            echo "沒有任何變動需要提交"
+          else
+            git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
+            git push
+          fi

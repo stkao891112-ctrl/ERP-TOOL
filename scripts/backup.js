@@ -18,8 +18,7 @@ const TABLES = [
   '庫存總表',
   '銷貨表',
   '進貨表',
-  '其他收支表',
-  '批次庫存表'
+  '其他收支表'
 ];
 
 async function backupTable(tableName) {
