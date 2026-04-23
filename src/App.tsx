@@ -547,6 +547,57 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
 
 // --- Main App ---
 
+const ImportProgressOverlay = ({ progress }: { progress: number }) => (
+  <div className="fixed inset-0 bg-[#111827]/60 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+    <motion.div 
+      initial={{ scale: 0.9, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      className="bg-white rounded-[2.5rem] p-10 w-full max-w-sm shadow-2xl flex flex-col items-center text-center space-y-6"
+    >
+      <div className="relative">
+        <div className="w-24 h-24 border-[6px] border-gray-100 rounded-full" />
+        <svg className="w-24 h-24 absolute top-0 left-0 -rotate-90">
+          <circle
+            cx="48"
+            cy="48"
+            r="42"
+            fill="none"
+            stroke="url(#gradient)"
+            strokeWidth="6"
+            strokeDasharray={264}
+            strokeDashoffset={264 - (264 * progress) / 100}
+            strokeLinecap="round"
+            className="transition-all duration-300"
+          />
+          <defs>
+            <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F97316" />
+              <stop offset="100%" stopColor="#EA580C" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-2xl font-black text-gray-900">{progress}%</span>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <h3 className="text-xl font-bold text-gray-900">資料匯入中</h3>
+        <p className="text-sm text-gray-500 font-medium px-4">
+          正在處理大體量數據並同步庫存與獲利，請勿關閉或重新整理頁面。
+        </p>
+      </div>
+
+      <div className="w-full bg-gray-50 rounded-2xl p-4 flex items-center gap-3">
+        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+        <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+          {progress < 30 ? '校驗數據格式' : progress < 80 ? '處理商品關聯' : '寫入資料庫並同步'}
+        </span>
+      </div>
+    </motion.div>
+  </div>
+);
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [cats, setCats] = useState<Category[]>([]);
@@ -557,6 +608,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
   const [importSuccessInfo, setImportSuccessInfo] = useState<{count: number, type: string} | null>(null);
   
@@ -1090,9 +1143,10 @@ export default function App() {
 
   const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || isSubmitting) return;
+    if (!file || isSubmitting || isImporting) return;
 
-    setIsSubmitting(true);
+    setIsImporting(true);
+    setImportProgress(0);
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -1105,13 +1159,13 @@ export default function App() {
         const missingHeaders = requiredHeaders.filter(h => !fields.includes(h));
         
         if (missingHeaders.length > 0) {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = '';
           return alert(`匯入失敗：CSV 缺少必要的表頭欄位: ${missingHeaders.join(', ')}\n請下載正確的範本使用。`);
         }
 
         if (rows.length === 0) {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = '';
           return alert('匯入失敗：CSV 檔案內沒有任何資料內容。');
         }
@@ -1138,11 +1192,12 @@ export default function App() {
           }
 
           validItems.push({ cat, name, status });
+          setImportProgress(Math.round(((i + 1) / rows.length) * 30));
         }
 
         if (errors.length > 0) {
           alert('匯入失敗，請修正後再試：\n' + errors.join('\n'));
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = ''; 
           return;
         }
@@ -1156,6 +1211,8 @@ export default function App() {
           }, {} as Record<string, { cat: Category, items: any[] }>);
 
           const insertData: any[] = [];
+          const catCount = Object.keys(grouped).length;
+          let currentCatIdx = 0;
 
           for (const catId in grouped) {
             const group = grouped[catId];
@@ -1187,26 +1244,32 @@ export default function App() {
                 平均成本: 0
               });
             });
+            currentCatIdx++;
+            setImportProgress(30 + Math.round((currentCatIdx / catCount) * 50));
           }
 
+          setImportProgress(90);
           const { error } = await sb.from('庫存總表').insert(insertData);
           if (error) {
             alert('批次寫入資料庫失敗：' + error.message);
           } else {
-            alert(`成功完成匯入，共 ${insertData.length} 筆商品。`);
-            fetchData();
+            setImportProgress(100);
+            setTimeout(() => {
+              alert(`成功完成匯入，共 ${insertData.length} 筆商品。`);
+              fetchData();
+            }, 300);
           }
         } catch (err) {
           console.error(err);
           alert('匯入過程發生未預期錯誤');
         } finally {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = ''; 
         }
       },
       error: (err) => {
         alert('解析 CSV 失敗：' + err.message);
-        setIsSubmitting(false);
+        setIsImporting(false);
         e.target.value = '';
       }
     });
@@ -1232,14 +1295,15 @@ export default function App() {
 
   const handlePurchaseCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || isSubmitting) return;
+    if (!file || isSubmitting || isImporting) return;
 
     const parseNum = (str: any) => {
       const s = String(str || '').replace(/,/g, '').trim();
       return s === '' ? NaN : Number(s);
     };
 
-    setIsSubmitting(true);
+    setIsImporting(true);
+    setImportProgress(0);
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -1251,7 +1315,7 @@ export default function App() {
         const missingHeaders = requiredHeaders.filter(h => !fields.includes(h));
         
         if (missingHeaders.length > 0) {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = '';
           const msg = `匯入失敗：CSV 缺少必要的表頭欄位: ${missingHeaders.join(', ')}\n請下載正確的範本使用。`;
           setCsvErrors([msg]);
@@ -1305,24 +1369,28 @@ export default function App() {
             訂單狀態: status,
             備註: note 
           });
+          setImportProgress(Math.round(((i + 1) / rows.length) * 40)); // 前 40% 校驗
         }
 
         if (errors.length > 0) {
           setCsvErrors(errors);
           setModalType('csvErrors');
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = ''; 
           return;
         }
 
         try {
+          setImportProgress(50);
           const { error } = await sb.from('進貨表').insert(validItems);
           if (error) throw error;
 
+          setImportProgress(60);
           // 同步庫存
           const uniqueIds = Array.from(new Set(validItems.map(v => v.商品ID)));
-          for (const pid of uniqueIds) {
-            await syncInventory(pid);
+          for (let i = 0; i < uniqueIds.length; i++) {
+            await syncInventory(uniqueIds[i]);
+            setImportProgress(60 + Math.round(((i + 1) / uniqueIds.length) * 40)); // 後 40% 同步
           }
 
           setImportSuccessInfo({ count: validItems.length, type: '進貨' });
@@ -1332,13 +1400,13 @@ export default function App() {
           console.error(err);
           alert('資料庫寫入失敗：' + err.message);
         } finally {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = '';
         }
       },
       error: (err) => {
         alert('解析 CSV 失敗：' + err.message);
-        setIsSubmitting(false);
+        setIsImporting(false);
         e.target.value = '';
       }
     });
@@ -1361,14 +1429,15 @@ export default function App() {
 
   const handleSaleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || isSubmitting) return;
+    if (!file || isSubmitting || isImporting) return;
 
     const parseNum = (str: any) => {
       const s = String(str || '').replace(/,/g, '').trim();
       return s === '' ? NaN : Number(s);
     };
 
-    setIsSubmitting(true);
+    setIsImporting(true);
+    setImportProgress(0);
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -1380,7 +1449,7 @@ export default function App() {
         const missingHeaders = requiredHeaders.filter(h => !fields.includes(h));
         
         if (missingHeaders.length > 0) {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = '';
           const msg = `匯入失敗：CSV 缺少必要的表頭欄位: ${missingHeaders.join(', ')}`;
           setCsvErrors([msg]);
@@ -1428,19 +1497,21 @@ export default function App() {
             備註: note,
             unitCost: product.平均成本 || 0
           });
+          setImportProgress(Math.round(((i + 1) / rows.length) * 20));
         }
 
         if (errors.length > 0) {
           setCsvErrors(errors);
           setModalType('csvErrors');
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = ''; 
           return;
         }
 
         try {
           const finalInsertData = [];
-          for (const item of validItems) {
+          for (let i = 0; i < validItems.length; i++) {
+            const item = validItems[i];
             const datePrefix = normalizeDateToOrderPrefix(item.date);
             if (!dateSeqs[datePrefix]) {
               const { data: existingSales } = await sb.from('銷貨表')
@@ -1471,14 +1542,16 @@ export default function App() {
               當前單位成本: item.unitCost,
               毛利: profit
             });
+            setImportProgress(20 + Math.round(((i + 1) / validItems.length) * 40));
           }
 
           const { error } = await sb.from('銷貨表').insert(finalInsertData);
           if (error) throw error;
 
           const uniqueIds = Array.from(new Set(validItems.map(v => v.商品ID)));
-          for (const pid of uniqueIds) {
-            await syncInventory(pid);
+          for (let i = 0; i < uniqueIds.length; i++) {
+            await syncInventory(uniqueIds[i]);
+            setImportProgress(60 + Math.round(((i + 1) / uniqueIds.length) * 40));
           }
 
           setImportSuccessInfo({ count: finalInsertData.length, type: '銷貨' });
@@ -1488,13 +1561,13 @@ export default function App() {
           console.error(err);
           alert('資料庫寫入失敗：' + err.message);
         } finally {
-          setIsSubmitting(false);
+          setIsImporting(false);
           e.target.value = '';
         }
       },
       error: (err) => {
         alert('解析 CSV 失敗：' + err.message);
-        setIsSubmitting(false);
+        setIsImporting(false);
         e.target.value = '';
       }
     });
