@@ -35,13 +35,16 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
-          # 建立目錄以防萬一，避免 git add 報錯
-          mkdir -p backups
-          git add backups/
-          # 檢查是否有變動需要 commit
-          if git diff --staged --quiet; then
-            echo "沒有任何變動需要提交"
+          
+          # 檢查是否存在 backups 資料夾且裡面有檔案
+          if [ -d "backups" ] && [ "$(ls -A backups)" ]; then
+            git add backups/
+            if git diff --staged --quiet; then
+              echo "數據無變動，無需提交。"
+            else
+              git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
+              git push
+            fi
           else
-            git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
-            git push
+            echo "未偵測到新的備份檔案，略過提交步驟。"
           fi

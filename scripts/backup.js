@@ -22,62 +22,60 @@ const TABLES = [
 ];
 
 async function backupTable(tableName) {
-  console.log(`正在備份: ${tableName}...`);
+  console.log(`[${tableName}] 開始讀取...`);
   const { data, error } = await supabase.from(tableName).select('*');
   
   if (error) {
-    console.error(`${tableName} 備份失敗:`, error);
-    return;
+    console.error(`[${tableName}] 讀取失敗:`, error.message);
+    throw new Error(`${tableName} 讀取失敗: ${error.message}`);
   }
-
-  if (!data || data.length === 0) {
-    console.log(`${tableName} 無資料，略過。`);
-    return;
-  }
-
-  // 取得所有欄位名稱作為 Header
-  const headers = Object.keys(data[0]);
-  
-  // 轉換為 CSV 格式
-  const csvRows = data.map(row => 
-    headers.map(header => {
-      const val = row[header] === null ? '' : row[header];
-      // 處理包含逗號或斷行的字串，用雙引號包起來
-      const escaped = ('' + val).replace(/"/g, '""');
-      return `"${escaped}"`;
-    }).join(',')
-  );
-
-  const csvContent = [headers.join(','), ...csvRows].join('\n');
-  
-  // 加上 UTF-8 BOM (\ufeff) 確保 Excel 開啟不亂碼
-  const contentWithBOM = '\ufeff' + csvContent;
 
   const dateStr = new Date().toISOString().split('T')[0];
   const dirPath = path.join(process.cwd(), 'backups', dateStr);
   
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
+    // 建立一個隱藏檔確保資料夾存在
+    fs.writeFileSync(path.join(dirPath, '.metadata'), `Backup initiated at ${new Date().toISOString()}`);
   }
 
+  if (!data || data.length === 0) {
+    console.log(`[${tableName}] 注意：目前資料表是空的，略過產生 CSV。`);
+    return;
+  }
+
+  const headers = Object.keys(data[0]);
+  const csvRows = data.map(row => 
+    headers.map(header => {
+      const val = row[header] === null ? '' : row[header];
+      const escaped = ('' + val).replace(/"/g, '""');
+      return `"${escaped}"`;
+    }).join(',')
+  );
+
+  const csvContent = [headers.join(','), ...csvRows].join('\n');
+  const contentWithBOM = '\ufeff' + csvContent;
+
   fs.writeFileSync(path.join(dirPath, `${tableName}.csv`), contentWithBOM);
-  console.log(`${tableName} 備份完成！`);
+  console.log(`[${tableName}] 成功匯出 ${data.length} 筆資料！`);
 }
 
 async function runBackup() {
-  console.log('--- 備份作業開始 ---');
-  console.log('Supabase URL:', supabaseUrl ? '已設定' : '未設定');
-  console.log('Supabase Key:', supabaseKey ? '已設定' : '未設定');
+  console.log('--- 備份除錯日誌 ---');
+  console.log('時間 (UTC):', new Date().toISOString());
+  console.log('URL 設定狀態:', !!supabaseUrl);
+  console.log('Key 設定狀態:', !!supabaseKey);
   
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('錯誤：請在 GitHub Secrets 中設定 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY');
-    process.exit(1);
+  try {
+    for (const table of TABLES) {
+      await backupTable(table);
+    }
+    console.log('--- 備份作業功德圓滿 ---');
+  } catch (err) {
+    console.error('--- 備份作業發生致命錯誤 ---');
+    console.error(err.message);
+    process.exit(1); // 強制讓 GitHub Actions 標示為失敗
   }
-
-  for (const table of TABLES) {
-    await backupTable(table);
-  }
-  console.log('--- 備份作業結束 ---');
 }
 
 runBackup();
