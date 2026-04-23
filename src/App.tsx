@@ -21,6 +21,7 @@ import {
   RefreshCw,
   Truck, 
   Clock, 
+  ChevronLeft,
   ChevronRight,
   TrendingUp,
   TrendingDown,
@@ -122,7 +123,6 @@ type OtherTrans = {
   收支類型: '收入' | '支出';
   項目內容: string;
   金額: number;
-  平台?: string;
   備註?: string;
 };
 
@@ -140,8 +140,9 @@ const normalizeDateToOrderPrefix = (dateStr: string) => {
   }
   return clean.replace(/[^0-9]/g, '');
 };
-const formatCurrency = (val: number) => {
-  return `NT$${val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+const formatCurrency = (val: number | null | undefined) => {
+  const v = val ?? 0;
+  return `NT$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 };
 
 // --- Components ---
@@ -624,6 +625,19 @@ export default function App() {
   const [dashChartType, setDashChartType] = useState<'bar' | 'line'>('bar');
   const [dashChartMetric, setDashChartMetric] = useState<'rev_pur' | 'net'>('rev_pur');
   
+  const shiftDashboardDate = (offset: number) => {
+    if (dashViewType === 'month') {
+      const [y, m] = dashMonth.split('-').map(Number);
+      const date = new Date(y, m - 1 + offset, 1);
+      const nextY = date.getFullYear();
+      const nextM = String(date.getMonth() + 1).padStart(2, '0');
+      setDashMonth(`${nextY}-${nextM}`);
+    } else {
+      const [y] = dashMonth.split('-').map(Number);
+      setDashMonth(`${y + offset}-01`);
+    }
+  };
+  
   // Modals Overlay
   const [modalType, setModalType] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<any>(null);
@@ -1009,6 +1023,8 @@ export default function App() {
 
     try {
       let res;
+      const oldProdId = editItem?.商品ID;
+      
       if (editItem) {
         res = await sb.from('進貨表').update({
           進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: Number(formData.get('amount')), 訂單狀態: status, 進貨來源: source, 備註: note
@@ -1023,6 +1039,9 @@ export default function App() {
         alert('儲存失敗：' + res.error.message);
       } else {
         await syncInventory(prodId);
+        if (oldProdId && oldProdId !== prodId) {
+          await syncInventory(oldProdId);
+        }
         setModalType(null);
         setEditItem(null);
         fetchData();
@@ -1047,6 +1066,10 @@ export default function App() {
     const platform = formData.get('platform') as string;
     const status = formData.get('status') as string;
     const note = formData.get('note') as string;
+    let finalNote = note;
+    if (amount === 0) {
+      finalNote = finalNote ? `${finalNote} (贈品)` : '贈品';
+    }
 
     if (!prodId) {
       setIsSubmitting(false);
@@ -1055,9 +1078,11 @@ export default function App() {
 
     try {
       let res;
+      const oldProdId = editItem?.商品ID;
+
       if (editItem) {
         res = await sb.from('銷貨表').update({
-          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status, 備註: note
+          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status, 備註: finalNote
         }).eq('id', editItem.id);
       } else {
         const datePrefix = normalizeDateToOrderPrefix(date || today());
@@ -1084,9 +1109,9 @@ export default function App() {
           銷售金額: amount, 
           平台: platform, 
           訂單狀態: status || '未出貨', 
-          備註: note,
-          當前單位成本: 0, // 初始設為 0，由之後的 syncInventory (FIFO) 算出真實成本
-          毛利: 0         // 同上
+          備註: finalNote,
+          當前單位成本: 0, 
+          毛利: 0         
         }]);
       }
 
@@ -1094,6 +1119,9 @@ export default function App() {
         alert('儲存失敗：' + res.error.message);
       } else {
         await syncInventory(prodId);
+        if (oldProdId && oldProdId !== prodId) {
+          await syncInventory(oldProdId);
+        }
         setModalType(null);
         setEditItem(null);
         fetchData();
@@ -1115,18 +1143,17 @@ export default function App() {
     const type = formData.get('type') as '收入' | '支出';
     const amount = Number(formData.get('amount'));
     const item = formData.get('item') as string;
-    const platform = formData.get('platform') as string;
     const note = formData.get('note') as string;
 
     try {
       if (editItem) {
         const { error } = await sb.from('其他收支表').update({
-          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 平台: platform, 備註: note
+          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
         }).eq('id', editItem.id);
         if (error) alert(error.message);
       } else {
         const { error } = await sb.from('其他收支表').insert([{
-          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 平台: platform, 備註: note
+          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
         }]);
         if (error) alert(error.message);
       }
@@ -1476,9 +1503,14 @@ export default function App() {
             continue;
           }
 
-          if (isNaN(qty) || isNaN(amount) || qty <= 0) {
-            errors.push(`第 ${i + 2} 行：數量、銷售金額必須為有效正數 (目前的輸入: 數量=${row['數量']}, 金額=${row['銷售金額']})`);
+          if (isNaN(qty) || isNaN(amount) || qty <= 0 || amount < 0) {
+            errors.push(`第 ${i + 2} 行：數量、銷售金額無效 (目前的輸入: 數量=${row['數量']}, 金額=${row['銷售金額']})`);
             continue;
+          }
+
+          let finalNote = note;
+          if (amount === 0) {
+            finalNote = finalNote ? `${finalNote} (贈品)` : '贈品';
           }
 
           const product = prods.find(p => p.商品名稱 === pName);
@@ -1494,7 +1526,7 @@ export default function App() {
             銷售金額: amount, 
             平台: platform,
             訂單狀態: status,
-            備註: note,
+            備註: finalNote,
             unitCost: product.平均成本 || 0
           });
           setImportProgress(Math.round(((i + 1) / rows.length) * 20));
@@ -1588,6 +1620,119 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  const handleFinanceCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || isSubmitting || isImporting) return;
+
+    const parseNum = (str: any) => {
+      const s = String(str || '').replace(/,/g, '').trim();
+      return s === '' ? NaN : Number(s);
+    };
+
+    setIsImporting(true);
+    setImportProgress(0);
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data as any[];
+        const fields = results.meta.fields || [];
+
+        const requiredHeaders = ['日期', '項目內容', '收支類型', '金額'];
+        const missingHeaders = requiredHeaders.filter(h => !fields.includes(h));
+        
+        if (missingHeaders.length > 0) {
+          setIsImporting(false);
+          e.target.value = '';
+          const msg = `匯入失敗：CSV 缺少必要的表頭欄位: ${missingHeaders.join(', ')}`;
+          setCsvErrors([msg]);
+          setModalType('csvErrors');
+          return;
+        }
+
+        const validItems: any[] = [];
+        const errors: string[] = [];
+
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const date = row['日期']?.toString().trim() || today();
+          const item = row['項目內容']?.toString().trim();
+          const type = row['收支類型']?.toString().trim();
+          const amount = parseNum(row['金額']);
+          const note = row['備註']?.toString().trim() || '';
+
+          if (!item || !type) {
+            errors.push(`第 ${i + 2} 行：項目內容與收支類型為必填`);
+            continue;
+          }
+
+          if (type !== '收入' && type !== '支出') {
+            errors.push(`第 ${i + 2} 行：收支類型必須為 "收入" 或 "支出" (目前的輸入: ${type})`);
+            continue;
+          }
+
+          if (isNaN(amount) || amount < 0) {
+            errors.push(`第 ${i + 2} 行：金額無效 (目前的輸入: ${row['金額']})`);
+            continue;
+          }
+
+          validItems.push({ 
+            日期: date, 
+            收支類型: type,
+            金額: amount, 
+            項目內容: item, 
+            備註: note 
+          });
+          setImportProgress(Math.round(((i + 1) / rows.length) * 50));
+        }
+
+        if (errors.length > 0) {
+          setCsvErrors(errors);
+          setModalType('csvErrors');
+          setIsImporting(false);
+          e.target.value = ''; 
+          return;
+        }
+
+        try {
+          const { error } = await sb.from('其他收支表').insert(validItems);
+          if (error) throw error;
+          
+          setImportProgress(100);
+          setImportSuccessInfo({ count: validItems.length, type: '收支' });
+          setModalType('importSuccess');
+          fetchData();
+        } catch (err: any) {
+          console.error(err);
+          alert('資料庫寫入失敗：' + err.message);
+        } finally {
+          setIsImporting(false);
+          e.target.value = '';
+        }
+      },
+      error: (err) => {
+        alert('解析 CSV 失敗：' + err.message);
+        setIsImporting(false);
+        e.target.value = '';
+      }
+    });
+  };
+
+  const handleDownloadFinanceTemplate = () => {
+    const headers = ['日期', '項目內容', '收支類型', '金額', '備註'];
+    const csvContent = headers.join(',') + '\n';
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', '其他收支匯入範本.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleDelete = async () => {
     if (!showDeleteConfirm || isSubmitting) return;
     setIsSubmitting(true);
@@ -1655,7 +1800,8 @@ export default function App() {
 
     setIsSubmitting(true);
     try {
-      const dateCol = table === '進貨表' ? '進貨日期' : '銷貨日期';
+      const dateCol = table === '進貨表' ? '進貨日期' : 
+                     table === '銷貨表' ? '銷貨日期' : '日期';
       let query = sb.from(table).delete().gte(dateCol, startDate).lte(dateCol, endDate);
 
       if (pName) {
@@ -1718,9 +1864,9 @@ export default function App() {
     });
   }, [prods, cats, invSearchApplied, invSortKey, invSortDir]);
 
+  const currentYear = dashMonth.slice(0, 4);
   const dashData = useMemo(() => {
     const isYear = dashViewType === 'year';
-    const currentYear = dashMonth.slice(0, 4);
     
     // Primary Filter
     const dateFilter = (dateStr: string) => isYear ? (dateStr || '').startsWith(currentYear) : (dateStr || '').startsWith(dashMonth);
@@ -1771,24 +1917,12 @@ export default function App() {
       };
     };
 
-    if (isYear) {
-      for (let m = 1; m <= 12; m++) {
-        const monthStr = `${currentYear}-${String(m).padStart(2, '0')}`;
-        chartData.push({
-          name: m + '月',
-          ...getPeriodStats(monthStr)
-        });
-      }
-    } else {
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(dashMonth + '-01');
-        d.setMonth(d.getMonth() - i);
-        const monthStr = d.toISOString().slice(0, 7);
-        chartData.push({
-          name: (d.getMonth() + 1) + '月',
-          ...getPeriodStats(monthStr)
-        });
-      }
+    for (let m = 1; m <= 12; m++) {
+      const monthStr = `${currentYear}-${String(m).padStart(2, '0')}`;
+      chartData.push({
+        name: m + '月',
+        ...getPeriodStats(monthStr)
+      });
     }
 
     // Pie Chart Data
@@ -1834,7 +1968,6 @@ export default function App() {
     let filtered = others.filter(o => {
       const q = financeSearch.toLowerCase();
       const matchesSearch = (o.項目內容 || '').toLowerCase().includes(q) || 
-                            (o.平台 || '').toLowerCase().includes(q) || 
                             (o.備註 || '').toLowerCase().includes(q);
       const matchesStart = !financeStartDate || o.日期 >= financeStartDate;
       const matchesEnd = !financeEndDate || o.日期 <= financeEndDate;
@@ -1964,7 +2097,7 @@ export default function App() {
     { id: 'dashboard', label: '主控面板', icon: LayoutDashboard },
     { id: 'category', label: '品類設定', icon: Tag },
     { id: 'inventory', label: '全域庫存', icon: Box },
-    { id: 'finance', label: '財務收支', icon: CreditCard },
+    { id: 'finance', label: '其他收支', icon: CreditCard },
     { id: 'purchase', label: '進貨管理', icon: ShoppingCart },
     { id: 'sales', label: '銷售訂單', icon: History },
   ];
@@ -2007,6 +2140,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-gray-900 overflow-x-hidden">
+      {/* --- Import Progress Overlay --- */}
+      {isImporting && <ImportProgressOverlay progress={importProgress} />}
+
       <AnimatePresence>
         {showSplash && <SplashScreen onComplete={() => {}} />}
       </AnimatePresence>
@@ -2115,26 +2251,44 @@ export default function App() {
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
                       {dashViewType === 'month' ? '基準月份' : '統計年份'}
                     </span>
-                    {dashViewType === 'month' ? (
-                      <input 
-                        type="month" 
-                        value={dashMonth}
-                        onChange={(e) => setDashMonth(e.target.value)}
-                        className="bg-gray-50 border-none rounded-2xl px-4 py-2 font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500/20"
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 pr-2">
+                      <button 
+                        onClick={() => shiftDashboardDate(-1)}
+                        className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
+                        title={dashViewType === 'month' ? "上一個月" : "上一年"}
+                      >
+                        <ChevronLeft size={18} />
+                      </button>
+                      
+                      {dashViewType === 'month' ? (
                         <input 
-                          type="number" 
-                          min="2000"
-                          max="2100"
-                          value={dashMonth.slice(0, 4)}
-                          onChange={(e) => setDashMonth(`${e.target.value}-${dashMonth.slice(5, 7)}`)}
-                          className="bg-gray-50 border-none rounded-2xl px-4 py-2 font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500/20 w-28"
+                          type="month" 
+                          value={dashMonth}
+                          onChange={(e) => setDashMonth(e.target.value)}
+                          className="bg-gray-50 border-none rounded-2xl px-4 py-2 font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500/20 text-center"
                         />
-                        <span className="text-sm font-bold text-gray-400">年</span>
-                      </div>
-                    )}
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <input 
+                            type="number" 
+                            min="2000"
+                            max="2100"
+                            value={dashMonth.slice(0, 4)}
+                            onChange={(e) => setDashMonth(`${e.target.value}-${dashMonth.slice(5, 7)}`)}
+                            className="bg-gray-50 border-none rounded-2xl px-4 py-2 font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500/20 w-28 text-center"
+                          />
+                          <span className="text-sm font-bold text-gray-400">年</span>
+                        </div>
+                      )}
+
+                      <button 
+                        onClick={() => shiftDashboardDate(1)}
+                        className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
+                        title={dashViewType === 'month' ? "下一個月" : "下一年"}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -2175,7 +2329,7 @@ export default function App() {
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                   <Card 
-                    title={dashViewType === 'year' ? "年度趨勢分佈" : "營運趨勢 (近六個月)"} 
+                    title={`${currentYear} 年度營運趨勢`} 
                     className="xl:col-span-2"
                     actions={
                       <div className="flex flex-wrap gap-2">
@@ -2568,7 +2722,7 @@ export default function App() {
               </div>
             )}
             
-            {/* --- Tab: Finance --- */}
+            {/* --- Tab: Other Transactions --- */}
             {activeTab === 'finance' && (
               <div className="space-y-6">
                 <div className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
@@ -2577,7 +2731,7 @@ export default function App() {
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                       <input 
                         type="text" 
-                        placeholder="搜尋項目或平台..." 
+                        placeholder="搜尋項目內容或備註..." 
                         value={financeSearch}
                         onChange={(e) => setFinanceSearch(e.target.value)}
                         className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
@@ -2609,12 +2763,38 @@ export default function App() {
                       <Search size={16} /> 查詢
                     </button>
                   </div>
-                  <button 
-                    onClick={() => { setModalType('finance'); setEditItem(null); }}
-                    className="w-full md:w-auto bg-emerald-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
-                  >
-                    新增收支
-                  </button>
+                  <div className="flex items-center gap-4 w-full md:w-auto">
+                    <button 
+                      onClick={handleDownloadFinanceTemplate}
+                      className="p-3 text-gray-400 hover:text-emerald-600 transition-colors bg-gray-50 rounded-2xl hover:bg-emerald-50"
+                      title="下載匯入範本"
+                    >
+                      <FileDown size={20} />
+                    </button>
+                    <label className="cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors flex items-center gap-2">
+                      <FileUp size={16} /> CSV 匯入
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        className="hidden" 
+                        onChange={handleFinanceCsvImport} 
+                        disabled={isSubmitting}
+                      />
+                    </label>
+                    <button 
+                      onClick={() => setShowBatchDelete('其他收支表')}
+                      className="p-3 text-red-400 hover:text-red-500 transition-colors bg-red-50 rounded-2xl hover:bg-red-100"
+                      title="批次刪除數據"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                    <button 
+                      onClick={() => { setModalType('finance'); setEditItem(null); }}
+                      className="flex-1 md:flex-none bg-emerald-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
+                    >
+                      新增收支
+                    </button>
+                  </div>
                 </div>
 
                 <Card>
@@ -2636,7 +2816,7 @@ export default function App() {
                           </th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">類型 / 項目</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">金額</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">平台 / 備註</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">備註</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">操作</th>
                         </tr>
                       </thead>
@@ -2659,7 +2839,6 @@ export default function App() {
                               </span>
                             </td>
                             <td className="px-6 py-5">
-                              <p className="text-sm font-semibold text-gray-700">{o.平台 || '--'}</p>
                               <p className="text-xs text-gray-400">{o.備註 || '無備註'}</p>
                             </td>
                             <td className="px-6 py-5 text-right">
@@ -3290,14 +3469,10 @@ export default function App() {
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">項目名稱</label>
                 <input name="item" required defaultValue={editItem?.項目內容} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20" placeholder="例如：運費支出" />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">金額</label>
                   <input name="amount" type="number" required defaultValue={editItem?.金額} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20" placeholder="0" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">平台</label>
-                  <input name="platform" defaultValue={editItem?.平台} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20" placeholder="例如：蝦皮" />
                 </div>
               </div>
               <div className="space-y-2">
