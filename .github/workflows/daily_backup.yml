@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0 # 抓取完整歷史，這對 rebase 很重要
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,16 +37,17 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # 檢查是否存在 backups 資料夾且裡面有檔案
+          # 先同步遠端變動，確保基礎是新的
+          git pull origin main --rebase
+
           if [ -d "backups" ] && [ "$(ls -A backups)" ]; then
             git add backups/
             if git diff --staged --quiet; then
               echo "數據無變動，無需提交。"
             else
               git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
-              # 先拉取最新變動，解決 push 被拒絕的問題
-              git pull --rebase origin main
-              git push
+              # 再次嘗試推送到遠端，若失敗則重複拉取
+              git push origin main || (git pull origin main --rebase && git push origin main)
             fi
           else
             echo "未偵測到新的備份檔案，略過提交步驟。"
