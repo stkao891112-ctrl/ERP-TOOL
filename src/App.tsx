@@ -40,7 +40,8 @@ import {
   Check,
   LogOut,
   Lock,
-  Mail
+  Mail,
+  Pin
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -89,6 +90,7 @@ type Product = {
   平均獲利?: number;
   目前狀態: string;
   更新時間?: string;
+  是否置頂?: boolean;
 };
 
 type Purchase = {
@@ -662,6 +664,7 @@ export default function App() {
 
   // Search/Filters (Applied)
   const [invSearchApplied, setInvSearchApplied] = useState('');
+  const [hideDiscontinued, setHideDiscontinued] = useState(false);
   const [invSortKey, setInvSortKey] = useState<'code' | 'cost' | 'stock' | 'status' | null>(null);
   const [invSortDir, setInvSortDir] = useState<'asc' | 'desc'>('asc');
   
@@ -906,6 +909,18 @@ export default function App() {
     }
   };
 
+  const togglePinProduct = async (id: string, currentStatus: any) => {
+    try {
+      // 根據使用者說明的 Y/N 邏輯更新
+      const newStatus = (currentStatus === 'Y' || currentStatus === true) ? 'N' : 'Y';
+      const { error } = await sb.from('庫存總表').update({ 是否置頂: newStatus }).eq('id', id);
+      if (error) throw error;
+      fetchData();
+    } catch (err: any) {
+      alert('置頂操作失敗：' + err.message);
+    }
+  };
+
   const handleSaveCategory = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (isSubmitting) return;
@@ -940,25 +955,30 @@ export default function App() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
-    const catId = formData.get('catId') as string;
+    const catId = (formData.get('catId') as string) || (editItem?.分類ID);
     const name = formData.get('name') as string;
     const stock = Number(formData.get('stock'));
     const status = formData.get('status') as string;
     
-    const cat = cats.find(c => c.id === catId);
+    // 預防編輯時因為欄位 disabled 導致抓不到 catId
+    const targetCatId = catId || editItem?.分類ID;
+    const cat = cats.find(c => c.id === targetCatId);
+    
     if (!cat) {
+      console.error('找不到對應分類:', targetCatId);
       setIsSubmitting(false);
       return;
     }
 
     try {
       if (editItem) {
-      // 編輯邏輯：通常不建議修改商品代號，這裡只更新名稱與狀態
-      const { error } = await sb.from('庫存總表').update({
-        商品名稱: name, 目前狀態: status
-      }).eq('id', editItem.id);
-      if (error) alert(error.message);
-    } else {
+        // 編輯邏輯：通常不建議修改商品代號，這裡只更新名稱與狀態
+        const { error } = await sb.from('庫存總表').update({
+          商品名稱: name, 
+          目前狀態: status
+        }).eq('id', editItem.id);
+        if (error) alert(error.message);
+      } else {
       // ✅ 依照需求：即時從 Supabase 抓取該分類目前的商品
       const { data: existingProds, error: fetchErr } = await sb
         .from('庫存總表')
@@ -1830,6 +1850,11 @@ export default function App() {
   
   const sortedProds = useMemo(() => {
     let filtered = prods.filter(p => {
+      // 隱藏停售商品過濾
+      if (hideDiscontinued && p.目前狀態 === '停售') {
+        return false;
+      }
+
       const cat = cats.find(c => c.id === p.分類ID);
       const q = invSearchApplied.toLowerCase();
       return (cat?.分類名稱 || '').toLowerCase().includes(q) || 
@@ -1838,9 +1863,18 @@ export default function App() {
              (p.商品名稱 || '').toLowerCase().includes(q);
     });
 
-    if (!invSortKey) return filtered;
-
+    // 置頂邏輯與排序邏輯結合
     return [...filtered].sort((a, b) => {
+      // 第一層：置頂排序
+      const pinA = (a.是否置頂 === true || (a.是否置頂 as any) === 'Y') ? 1 : 0;
+      const pinB = (b.是否置頂 === true || (b.是否置頂 as any) === 'Y') ? 1 : 0;
+      if (pinA !== pinB) return pinB - pinA;
+
+      // 第二層：使用者選擇的排序，如果沒選，預設依商品代號正序
+      if (!invSortKey) {
+        return (a.商品代號 || '').localeCompare(b.商品代號 || '');
+      }
+      
       let valA: any = '';
       let valB: any = '';
 
@@ -1862,7 +1896,7 @@ export default function App() {
       if (valA > valB) return invSortDir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [prods, cats, invSearchApplied, invSortKey, invSortDir]);
+  }, [prods, cats, invSearchApplied, hideDiscontinued, invSortKey, invSortDir]);
 
   const currentYear = dashMonth.slice(0, 4);
   const dashData = useMemo(() => {
@@ -2704,6 +2738,18 @@ export default function App() {
                         disabled={isSubmitting}
                       />
                     </label>
+
+                    {/* 隱藏停售商品勾選框 */}
+                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-xl cursor-pointer transition-colors border border-transparent hover:border-gray-200">
+                      <input 
+                        type="checkbox" 
+                        checked={hideDiscontinued}
+                        onChange={(e) => setHideDiscontinued(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500/20"
+                      />
+                      <span className="text-xs font-bold text-gray-600">隱藏停售商品</span>
+                    </label>
+
                     <button 
                       onClick={() => { setModalType('product'); setEditItem(null); }}
                       className="flex-1 sm:flex-none bg-[#111827] text-white px-8 py-3 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
@@ -2805,6 +2851,14 @@ export default function App() {
                               </td>
                               <td className="px-6 py-5 text-right">
                                 <div className="flex justify-end gap-2">
+                                  <button 
+                                    onClick={() => togglePinProduct(p.id, p.是否置頂)} 
+                                    className={cn("p-2 transition-colors rounded-xl flex items-center gap-1", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-orange-500 bg-orange-50" : "text-gray-400 hover:bg-gray-100")}
+                                    title={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "取消置頂" : "設為置頂"}
+                                  >
+                                    <Pin size={16} fill={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "currentColor" : "none"} />
+                                    {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <span className="text-[10px] font-bold">置頂</span>}
+                                  </button>
                                   <button onClick={() => { setEditItem(p); setModalType('product'); }} className="p-2 transition-colors hover:bg-gray-100 rounded-xl text-blue-500">
                                     <Edit3 size={16} />
                                   </button>
@@ -2832,12 +2886,22 @@ export default function App() {
                                 {cat?.分類代號}
                               </div>
                               <div className="min-w-0">
-                                <span className="text-xs font-bold text-orange-500 tracking-wider">#{p.商品代號}</span>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs font-bold text-orange-500 tracking-wider">#{p.商品代號}</span>
+                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <Pin size={10} className="text-orange-500 fill-orange-500" />}
+                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <span className="text-[8px] font-bold text-orange-500">置頂</span>}
+                                </div>
                                 <p className="font-bold text-gray-900 truncate">{p.商品名稱}</p>
                                 <p className="text-[10px] text-gray-400 font-bold">{cat?.分類名稱}</p>
                               </div>
                             </div>
                             <div className="flex gap-1">
+                              <button 
+                                onClick={() => togglePinProduct(p.id, p.是否置頂)} 
+                                className={cn("p-2 rounded-xl transition-colors", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-orange-500 bg-orange-100" : "text-gray-400 bg-gray-50")}
+                              >
+                                <Pin size={16} fill={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "currentColor" : "none"} />
+                              </button>
                               <button onClick={() => { setEditItem(p); setModalType('product'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
                                 <Edit3 size={16} />
                               </button>
