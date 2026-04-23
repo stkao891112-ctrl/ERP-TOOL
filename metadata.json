@@ -1,0 +1,6 @@
+{
+  "name": "代購管家 ERP",
+  "description": "專業的代購訂單與庫存管理系統，整合 Supabase 資料庫與即時報表。",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

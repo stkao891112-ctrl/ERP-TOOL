@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "PingFang TC", "Noto Sans TC", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+@layer base {
+  body {
+    @apply antialiased text-gray-900 bg-[#F8F9FA];
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Custom Scrollbar for a more premium look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.2);
+}
+
+/* Modal Overlay Blur */
+.backdrop-blur-sm {
+  backdrop-filter: blur(8px);
+}
