@@ -2139,7 +2139,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-gray-900 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8F9FA] flex flex-col lg:flex-row font-sans text-gray-900 overflow-x-hidden">
       {/* --- Import Progress Overlay --- */}
       {isImporting && <ImportProgressOverlay progress={importProgress} />}
 
@@ -2147,8 +2147,8 @@ export default function App() {
         {showSplash && <SplashScreen onComplete={() => {}} />}
       </AnimatePresence>
 
-      {/* --- Sidebar --- */}
-      <aside className="fixed left-0 top-0 h-full w-20 xl:w-64 bg-[#111827] text-white flex flex-col z-40 transition-all duration-300">
+      {/* --- Sidebar (Desktop) --- */}
+      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-20 xl:w-64 bg-[#111827] text-white flex-col z-40 transition-all duration-300">
         <div className="p-4 xl:p-8 flex items-center justify-center xl:justify-start gap-3">
           <motion.div 
             whileHover={{ scale: 1.1, rotate: 5 }}
@@ -2198,8 +2198,37 @@ export default function App() {
         </div>
       </aside>
 
+      {/* --- Bottom Nav (Mobile) --- */}
+      <nav className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[92%] bg-[#111827]/90 backdrop-blur-lg border border-white/10 rounded-[2rem] px-4 py-3 flex items-center justify-between z-50 shadow-2xl">
+        {sidebarItems.map(item => (
+          <button
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
+            className={cn(
+              "p-3 rounded-2xl transition-all relative flex flex-col items-center gap-1",
+              activeTab === item.id ? "text-orange-500" : "text-gray-500"
+            )}
+          >
+            <item.icon size={20} className={activeTab === item.id ? "fill-orange-500/20" : ""} />
+            {activeTab === item.id && (
+              <motion.div 
+                layoutId="active-nav-mobile"
+                className="absolute -top-1 w-1 h-1 bg-orange-500 rounded-full"
+              />
+            )}
+            <span className="text-[10px] font-bold tracking-tight">{item.label.slice(0, 2)}</span>
+          </button>
+        ))}
+        <button 
+          onClick={() => { if(window.confirm('確定要登出系統嗎？')) sb.auth.signOut(); }}
+          className="p-3 text-gray-500"
+        >
+          <LogOut size={20} />
+        </button>
+      </nav>
+
       {/* --- Main Content --- */}
-      <main className="flex-1 ml-20 xl:ml-64 min-h-screen px-4 py-8 xl:px-12 xl:py-10">
+      <main className="flex-1 lg:ml-20 xl:ml-64 min-h-screen px-4 py-8 xl:px-12 xl:py-10 pb-32 lg:pb-10">
         {/* Top Bar */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
           <div>
@@ -2232,62 +2261,65 @@ export default function App() {
             {/* --- Tab: Dashboard --- */}
             {activeTab === 'dashboard' && (
               <div className="space-y-8">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="flex items-center gap-4 bg-white p-2 pl-6 rounded-3xl border border-gray-100 w-fit shadow-sm">
-                    <div className="flex bg-gray-100 p-1 rounded-2xl mr-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex flex-col xs:flex-row items-center gap-3 bg-white p-2 xs:pl-6 rounded-3xl border border-gray-100 shadow-sm w-full sm:w-auto">
+                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full xs:w-auto">
                       <button 
                         onClick={() => setDashViewType('month')}
-                        className={cn("px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'month' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'month' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
                       >
                         月統計
                       </button>
                       <button 
                         onClick={() => setDashViewType('year')}
-                        className={cn("px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'year' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'year' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
                       >
                         年統計
                       </button>
                     </div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-widest">
-                      {dashViewType === 'month' ? '基準月份' : '統計年份'}
-                    </span>
-                    <div className="flex items-center gap-1 pr-2">
-                      <button 
-                        onClick={() => shiftDashboardDate(-1)}
-                        className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
-                        title={dashViewType === 'month' ? "上一個月" : "上一年"}
-                      >
-                        <ChevronLeft size={18} />
-                      </button>
-                      
-                      {dashViewType === 'month' ? (
-                        <input 
-                          type="month" 
-                          value={dashMonth}
-                          onChange={(e) => setDashMonth(e.target.value)}
-                          className="bg-gray-50 border-none rounded-2xl px-4 py-2 font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500/20 text-center"
-                        />
-                      ) : (
-                        <div className="flex items-center gap-2">
+                    
+                    <div className="flex items-center gap-2 w-full xs:w-auto justify-center xs:justify-start">
+                      <span className="hidden xs:inline text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+                        {dashViewType === 'month' ? '基準月份' : '統計年份'}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button 
+                          onClick={() => shiftDashboardDate(-1)}
+                          className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
+                          title={dashViewType === 'month' ? "上一個月" : "下一年"}
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        
+                        {dashViewType === 'month' ? (
                           <input 
-                            type="number" 
-                            min="2000"
-                            max="2100"
-                            value={dashMonth.slice(0, 4)}
-                            onChange={(e) => setDashMonth(`${e.target.value}-${dashMonth.slice(5, 7)}`)}
-                            className="bg-gray-50 border-none rounded-2xl px-4 py-2 font-semibold text-gray-800 focus:ring-2 focus:ring-orange-500/20 w-28 text-center"
+                            type="month" 
+                            value={dashMonth}
+                            onChange={(e) => setDashMonth(e.target.value)}
+                            className="bg-gray-50 border-none rounded-xl px-2 py-1.5 font-bold text-gray-800 focus:ring-2 focus:ring-orange-500/20 text-center text-sm w-32"
                           />
-                          <span className="text-sm font-bold text-gray-400">年</span>
-                        </div>
-                      )}
-
-                      <button 
-                        onClick={() => shiftDashboardDate(1)}
-                        className="p-2 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
-                        title={dashViewType === 'month' ? "下一個月" : "下一年"}
-                      >
-                        <ChevronRight size={18} />
-                      </button>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <input 
+                              type="number" 
+                              min="2000"
+                              max="2100"
+                              value={dashMonth.slice(0, 4)}
+                              onChange={(e) => setDashMonth(`${e.target.value}-${dashMonth.slice(5, 7)}`)}
+                              className="bg-gray-50 border-none rounded-xl px-2 py-1.5 font-bold text-gray-800 focus:ring-2 focus:ring-orange-500/20 w-20 text-center text-sm"
+                            />
+                            <span className="text-[10px] font-bold text-gray-400">年</span>
+                          </div>
+                        )}
+                        
+                        <button 
+                          onClick={() => shiftDashboardDate(1)}
+                          className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
+                          title={dashViewType === 'month' ? "下一個月" : "下一年"}
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2332,31 +2364,31 @@ export default function App() {
                     title={`${currentYear} 年度營運趨勢`} 
                     className="xl:col-span-2"
                     actions={
-                      <div className="flex flex-wrap gap-2">
-                        <div className="flex bg-gray-100 p-1 rounded-xl">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex bg-gray-100/80 p-1 rounded-xl shadow-inner border border-gray-100">
                           <button 
                             onClick={() => setDashChartMetric('rev_pur')}
-                            className={cn("px-4 py-1.5 text-xs font-bold rounded-lg transition-all", dashChartMetric === 'rev_pur' ? "bg-white text-orange-600 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartMetric === 'rev_pur' ? "bg-white text-orange-600 shadow-md ring-1 ring-orange-500/5" : "text-gray-400 hover:text-gray-600")}
                           >
                             收支
                           </button>
                           <button 
                             onClick={() => setDashChartMetric('net')}
-                            className={cn("px-4 py-1.5 text-xs font-bold rounded-lg transition-all", dashChartMetric === 'net' ? "bg-white text-orange-600 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartMetric === 'net' ? "bg-white text-orange-600 shadow-md ring-1 ring-orange-500/5" : "text-gray-400 hover:text-gray-600")}
                           >
                             淨利
                           </button>
                         </div>
-                        <div className="flex bg-gray-100 p-1 rounded-xl">
+                        <div className="flex bg-gray-100/80 p-1 rounded-xl shadow-inner border border-gray-100">
                           <button 
                             onClick={() => setDashChartType('bar')}
-                            className={cn("px-4 py-1.5 text-xs font-bold rounded-lg transition-all", dashChartType === 'bar' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartType === 'bar' ? "bg-white text-gray-900 shadow-md ring-1 ring-gray-900/5" : "text-gray-400 hover:text-gray-600")}
                           >
                             柱狀
                           </button>
                           <button 
                             onClick={() => setDashChartType('line')}
-                            className={cn("px-4 py-1.5 text-xs font-bold rounded-lg transition-all", dashChartType === 'line' ? "bg-white text-gray-900 shadow-sm" : "text-gray-400 hover:text-gray-600")}
+                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartType === 'line' ? "bg-white text-gray-900 shadow-md ring-1 ring-gray-900/5" : "text-gray-400 hover:text-gray-600")}
                           >
                             折線
                           </button>
@@ -2364,34 +2396,70 @@ export default function App() {
                       </div>
                     }
                   >
-                    <div className="h-[300px] w-full mt-4">
+                    <div className="h-[380px] w-full mt-6 -ml-4 pr-2">
                       <ResponsiveContainer width="100%" height="100%">
                         {dashChartType === 'bar' ? (
-                          <BarChart data={dashData.chartData} margin={{ left: 10, right: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
-                            <YAxis width={80} axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} tickFormatter={(value) => `NT$${value.toLocaleString()}`} />
+                          <BarChart data={dashData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                            <XAxis 
+                              dataKey="name" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{fill: '#9CA3AF', fontSize: 11, fontWeight: 500}} 
+                              dy={10}
+                            />
+                            <YAxis 
+                              width={70} 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{fill: '#9CA3AF', fontSize: 11, fontWeight: 500}} 
+                              tickFormatter={(value) => `NT$${(value / 1000).toLocaleString()}k`} 
+                            />
                             <Tooltip 
                               formatter={(value: any) => [`NT$${value.toLocaleString()}`, '']}
-                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                              contentStyle={{ 
+                                borderRadius: '16px', 
+                                border: 'none', 
+                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                                padding: '12px'
+                              }}
                               cursor={{ fill: '#F9FAFB' }}
                             />
-                            {dashChartMetric === 'rev_pur' && <Bar dataKey="revenue" name="營業額" fill="#185FA5" radius={[4, 4, 0, 0]} />}
-                            {dashChartMetric === 'rev_pur' && <Bar dataKey="purchase" name="採購額" fill="#F97316" radius={[4, 4, 0, 0]} />}
-                            {dashChartMetric === 'net' && <Bar dataKey="net" name="總淨利" fill="#10B981" radius={[4, 4, 0, 0]} />}
+                            {dashChartMetric === 'rev_pur' && <Bar dataKey="revenue" name="營業額" fill="#185FA5" radius={[6, 6, 0, 0]} barSize={20} />}
+                            {dashChartMetric === 'rev_pur' && <Bar dataKey="purchase" name="採購額" fill="#F97316" radius={[6, 6, 0, 0]} barSize={20} />}
+                            {dashChartMetric === 'net' && <Bar dataKey="net" name="總淨利" fill="#10B981" radius={[6, 6, 0, 0]} barSize={32} />}
+                            <Legend verticalAlign="top" align="right" height={36} iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
                           </BarChart>
                         ) : (
-                          <LineChart data={dashData.chartData} margin={{ left: 10, right: 10 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
-                            <YAxis width={80} axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} tickFormatter={(value) => `NT$${value.toLocaleString()}`} />
+                          <LineChart data={dashData.chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                            <XAxis 
+                              dataKey="name" 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{fill: '#9CA3AF', fontSize: 11, fontWeight: 500}} 
+                              dy={10}
+                            />
+                            <YAxis 
+                              width={70} 
+                              axisLine={false} 
+                              tickLine={false} 
+                              tick={{fill: '#9CA3AF', fontSize: 11, fontWeight: 500}} 
+                              tickFormatter={(value) => `NT$${(value / 1000).toLocaleString()}k`} 
+                            />
                             <Tooltip 
                               formatter={(value: any) => [`NT$${value.toLocaleString()}`, '']}
-                              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
+                              contentStyle={{ 
+                                borderRadius: '16px', 
+                                border: 'none', 
+                                boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                                padding: '12px'
+                              }}
                             />
-                            {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="revenue" name="營業額" stroke="#185FA5" strokeWidth={3} dot={{ r: 4, fill: '#185FA5', strokeWidth: 0 }} activeDot={{ r: 6 }} />}
-                            {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="purchase" name="採購額" stroke="#F97316" strokeWidth={3} dot={{ r: 4, fill: '#F97316', strokeWidth: 0 }} activeDot={{ r: 6 }} />}
-                            {dashChartMetric === 'net' && <Line type="monotone" dataKey="net" name="總淨利" stroke="#10B981" strokeWidth={3} dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 6 }} />}
+                            {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="revenue" name="營業額" stroke="#185FA5" strokeWidth={4} dot={{ r: 4, fill: '#185FA5', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
+                            {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="purchase" name="採購額" stroke="#F97316" strokeWidth={4} dot={{ r: 4, fill: '#F97316', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
+                            {dashChartMetric === 'net' && <Line type="monotone" dataKey="net" name="總淨利" stroke="#10B981" strokeWidth={4} dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
+                            <Legend verticalAlign="top" align="right" height={36} iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
                           </LineChart>
                         )}
                       </ResponsiveContainer>
@@ -2420,7 +2488,7 @@ export default function App() {
                               ))}
                             </Pie>
                             <Tooltip 
-                              formatter={(value: any) => [`$${value.toLocaleString()}`, '銷售額']}
+                              formatter={(value: any) => [`NT$${value.toLocaleString()}`, '金額']}
                               contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                             />
                             <Legend 
@@ -2463,7 +2531,7 @@ export default function App() {
                 </div>
 
                 <Card title={dashViewType === 'year' ? `${dashMonth.slice(0, 4)} 年度銷售明細` : `${dashMonth} 月份銷售明細`}>
-                   <div className="overflow-x-auto">
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-100">
@@ -2503,7 +2571,38 @@ export default function App() {
                         )}
                       </tbody>
                     </table>
-                   </div>
+                  </div>
+
+                  {/* Mobile View */}
+                  <div className="lg:hidden divide-y divide-gray-100">
+                    {dashData.ms.length > 0 ? dashData.ms.map(item => {
+                      const prod = prods.find(p => p.id === item.商品ID);
+                      return (
+                        <div key={item.id} className="py-4">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                               <p className="text-[10px] text-gray-400 font-bold mb-0.5">{item.銷貨日期}</p>
+                               <p className="text-sm font-bold text-gray-900">{prod?.商品名稱}</p>
+                            </div>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase",
+                              item.訂單狀態 === '已完成' ? "bg-emerald-100 text-emerald-600" :
+                              item.訂單狀態 === '已出貨' ? "bg-blue-100 text-blue-600" :
+                              "bg-amber-100 text-amber-600"
+                            )}>
+                              {item.訂單狀態}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-end">
+                             <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">#{prod?.商品代號}</span>
+                             <span className="text-sm font-black text-gray-900">{formatCurrency(item.銷售金額)}</span>
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                      <p className="text-center text-xs text-gray-400 py-8 italic">此區間尚無銷售資料</p>
+                    )}
+                  </div>
                 </Card>
               </div>
             )}
@@ -2556,8 +2655,8 @@ export default function App() {
             {/* --- Tab: Inventory --- */}
             {activeTab === 'inventory' && (
               <div className="space-y-6">
-                <div className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                  <div className="relative flex-1 w-full flex gap-3">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row gap-4">
                     <div className="relative flex-1">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                       <input 
@@ -2570,31 +2669,33 @@ export default function App() {
                     </div>
                     <button 
                       onClick={() => setInvSearchApplied(invSearch)}
-                      className="bg-orange-100 text-orange-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-orange-200 transition-colors flex items-center gap-2 whitespace-nowrap"
+                      className="w-full lg:w-auto bg-orange-100 text-orange-600 px-8 py-3 rounded-2xl font-bold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2"
                     >
                       <Search size={16} /> 查詢
                     </button>
                   </div>
-                  <div className="flex gap-3 w-full md:w-auto">
+
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button 
                       onClick={syncAllInventory}
                       disabled={isSubmitting}
-                      className="p-3 text-emerald-600 hover:text-emerald-700 transition-colors bg-emerald-50 rounded-2xl hover:bg-emerald-100 shadow-sm"
+                      className="p-3 text-emerald-600 hover:text-emerald-700 transition-colors bg-gray-50 rounded-xl hover:bg-emerald-100"
                       title="重新計算所有庫存與獲利"
                     >
                       <RotateCcw size={20} className={cn(isSubmitting && "animate-spin")} />
                     </button>
                     <button 
                       onClick={handleDownloadTemplate}
-                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm bg-gray-50 text-gray-700 hover:bg-gray-100 transition-all shadow"
+                      className="p-3 text-gray-400 hover:text-gray-600 transition-colors bg-gray-50 rounded-xl hover:bg-gray-100"
+                      title="下載匯入範本"
                     >
-                      <FileDown size={16} /> 範本下載
+                      <FileDown size={20} />
                     </button>
                     <label className={cn(
-                      "flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow cursor-pointer",
+                      "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-bold text-xs transition-all cursor-pointer",
                       isSubmitting ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 text-gray-700 hover:bg-gray-100"
                     )}>
-                      <FileUp size={16} /> {isSubmitting ? '載入中...' : 'CSV 匯入'}
+                      <FileUp size={14} /> {isSubmitting ? '載入中...' : 'CSV 匯入'}
                       <input 
                         type="file" 
                         accept=".csv" 
@@ -2605,7 +2706,7 @@ export default function App() {
                     </label>
                     <button 
                       onClick={() => { setModalType('product'); setEditItem(null); }}
-                      className="flex-1 md:flex-none bg-[#111827] text-white px-8 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
+                      className="flex-1 sm:flex-none bg-[#111827] text-white px-8 py-3 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
                     >
                       新增商品
                     </button>
@@ -2613,7 +2714,7 @@ export default function App() {
                 </div>
 
                 <Card>
-                  <div className="overflow-x-auto">
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-gray-100">
@@ -2718,6 +2819,58 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden divide-y divide-gray-100">
+                    {sortedProds.map(p => {
+                      const cat = cats.find(c => c.id === p.分類ID);
+                      return (
+                        <div key={p.id} className="py-4 space-y-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
+                                {cat?.分類代號}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="text-xs font-bold text-orange-500 tracking-wider">#{p.商品代號}</span>
+                                <p className="font-bold text-gray-900 truncate">{p.商品名稱}</p>
+                                <p className="text-[10px] text-gray-400 font-bold">{cat?.分類名稱}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => { setEditItem(p); setModalType('product'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
+                                <Edit3 size={16} />
+                              </button>
+                              <button onClick={() => setShowDeleteConfirm({ table: '庫存總表', id: p.id })} className="p-2 text-red-500 bg-red-50 rounded-xl">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-2xl">
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">庫存 / 成本</p>
+                              <div className="flex items-baseline gap-1">
+                                <span className={cn("text-lg font-black", p.庫存數量 < 5 ? "text-red-500" : "text-gray-900")}>{p.庫存數量}</span>
+                                <span className="text-[10px] text-gray-400">件</span>
+                              </div>
+                              <p className="text-xs font-bold text-gray-600 mt-1">{formatCurrency(p.平均成本 || 0)}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">平均獲利</p>
+                              <p className="text-sm font-black text-emerald-600">{formatCurrency(p.平均獲利 || 0)}</p>
+                              <span className={cn(
+                                "mt-1 inline-block text-[10px] font-bold px-2 py-0.5 rounded-lg uppercase",
+                                p.目前狀態 === '售賣中' ? "bg-emerald-100 text-emerald-600" : "bg-gray-200 text-gray-500"
+                              )}>
+                                {p.目前狀態}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </Card>
               </div>
             )}
@@ -2725,8 +2878,8 @@ export default function App() {
             {/* --- Tab: Other Transactions --- */}
             {activeTab === 'finance' && (
               <div className="space-y-6">
-                <div className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                  <div className="relative flex-1 w-full flex gap-4">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row gap-4">
                     <div className="relative flex-1">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                       <input 
@@ -2734,45 +2887,48 @@ export default function App() {
                         placeholder="搜尋項目內容或備註..." 
                         value={financeSearch}
                         onChange={(e) => setFinanceSearch(e.target.value)}
-                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
+                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-emerald-500/20"
                       />
                     </div>
-                    <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none">
-                      <input 
-                        type="date"
-                        value={financeStartDate}
-                        onChange={(e) => setFinanceStartDate(e.target.value)}
-                        className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-32"
-                      />
-                      <span className="text-gray-300 mx-2 text-xs">至</span>
-                      <input 
-                        type="date"
-                        value={financeEndDate}
-                        onChange={(e) => setFinanceEndDate(e.target.value)}
-                        className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-32"
-                      />
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none w-full sm:w-auto">
+                        <input 
+                          type="date"
+                          value={financeStartDate}
+                          onChange={(e) => setFinanceStartDate(e.target.value)}
+                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
+                        />
+                        <span className="text-gray-300 mx-2 text-xs">至</span>
+                        <input 
+                          type="date"
+                          value={financeEndDate}
+                          onChange={(e) => setFinanceEndDate(e.target.value)}
+                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
+                        />
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setFinanceSearchApplied(financeSearch);
+                          setFinanceStartDateApplied(financeStartDate);
+                          setFinanceEndDateApplied(financeEndDate);
+                        }}
+                        className="w-full sm:w-auto bg-emerald-100 text-emerald-600 px-8 py-3 rounded-2xl font-bold text-sm hover:bg-emerald-200 transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Search size={16} /> 查詢
+                      </button>
                     </div>
-                    <button 
-                      onClick={() => {
-                        setFinanceSearchApplied(financeSearch);
-                        setFinanceStartDateApplied(financeStartDate);
-                        setFinanceEndDateApplied(financeEndDate);
-                      }}
-                      className="bg-emerald-100 text-emerald-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-emerald-200 transition-colors flex items-center gap-2 whitespace-nowrap"
-                    >
-                      <Search size={16} /> 查詢
-                    </button>
                   </div>
-                  <div className="flex items-center gap-4 w-full md:w-auto">
+                  
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button 
                       onClick={handleDownloadFinanceTemplate}
-                      className="p-3 text-gray-400 hover:text-emerald-600 transition-colors bg-gray-50 rounded-2xl hover:bg-emerald-50"
+                      className="p-3 text-gray-400 hover:text-emerald-600 transition-colors bg-gray-50 rounded-xl hover:bg-emerald-50"
                       title="下載匯入範本"
                     >
                       <FileDown size={20} />
                     </button>
-                    <label className="cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors flex items-center gap-2">
-                      <FileUp size={16} /> CSV 匯入
+                    <label className="flex-1 sm:flex-none cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-xl font-bold text-xs hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                      <FileUp size={14} /> CSV 匯入
                       <input 
                         type="file" 
                         accept=".csv" 
@@ -2783,14 +2939,14 @@ export default function App() {
                     </label>
                     <button 
                       onClick={() => setShowBatchDelete('其他收支表')}
-                      className="p-3 text-red-400 hover:text-red-500 transition-colors bg-red-50 rounded-2xl hover:bg-red-100"
+                      className="p-3 text-red-100 hover:text-red-500 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
                       title="批次刪除數據"
                     >
                       <Trash2 size={20} />
                     </button>
                     <button 
                       onClick={() => { setModalType('finance'); setEditItem(null); }}
-                      className="flex-1 md:flex-none bg-emerald-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
+                      className="flex-1 sm:flex-none bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
                     >
                       新增收支
                     </button>
@@ -2804,12 +2960,12 @@ export default function App() {
                     pageSize={ITEMS_PER_PAGE} 
                     onChange={setFinancePage} 
                   />
-                  <div className="overflow-x-auto">
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-emerald-500 transition-colors"
                             onClick={() => setFinanceSortDir(financeSortDir === 'asc' ? 'desc' : 'asc')}
                           >
                             <div className="flex items-center">日期 <SortIconGeneric dir={financeSortDir} active={true} /></div>
@@ -2856,6 +3012,46 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden divide-y divide-gray-100">
+                    {sortedOthers.slice((financePage - 1) * ITEMS_PER_PAGE, financePage * ITEMS_PER_PAGE).map(o => (
+                      <div key={o.id} className="py-4 space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{o.日期}</p>
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase inline-block",
+                              o.收支類型 === '收入' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
+                            )}>
+                              {o.收支類型}
+                            </span>
+                            <h4 className="font-bold text-gray-900">{o.項目內容}</h4>
+                          </div>
+                          <div className="flex gap-1">
+                            <button onClick={() => { setEditItem(o); setModalType('finance'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
+                              <Edit3 size={16} />
+                            </button>
+                            <button onClick={() => setShowDeleteConfirm({ table: '其他收支表', id: o.id })} className="p-2 text-red-500 bg-red-50 rounded-xl">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-end bg-gray-50 p-4 rounded-2xl">
+                          <div>
+                            <p className="text-[10px] text-gray-400 font-bold mb-0.5">備註說明</p>
+                            <p className="text-xs text-gray-600 italic">{o.備註 || '均無備註'}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] text-gray-400 font-bold mb-0.5">交易金額</p>
+                            <p className={cn("text-lg font-black", o.收支類型 === '收入' ? "text-emerald-600" : "text-red-600")}>
+                               {o.收支類型 === '收入' ? '+' : '-'}{formatCurrency(o.金額)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </Card>
               </div>
             )}
@@ -2863,40 +3059,32 @@ export default function App() {
             {/* --- Tab: Purchase --- */}
             {activeTab === 'purchase' && (
               <div className="space-y-6">
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
-                      <Truck className="text-blue-500" size={32} />
-                      進貨管理
-                      <span className="text-xs font-bold bg-blue-50 text-blue-500 px-3 py-1 rounded-full border border-blue-100">
-                        共 {purch.length} 筆
-                      </span>
-                    </h2>
-                  </div>
-                  <div className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                    <div className="relative flex-1 w-full flex gap-4">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input 
-                          type="text" 
-                          placeholder="搜尋商品名稱、代號或來源..." 
-                          value={purchaseSearch}
-                          onChange={(e) => setPurchaseSearch(e.target.value)}
-                          className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
-                        />
-                      </div>
-                      <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="搜尋商品名稱、代號或來源..." 
+                        value={purchaseSearch}
+                        onChange={(e) => setPurchaseSearch(e.target.value)}
+                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none w-full sm:w-auto">
                         <input 
                           type="date"
                           value={purchaseStartDate}
                           onChange={(e) => setPurchaseStartDate(e.target.value)}
-                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-32"
+                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
                         />
                         <span className="text-gray-300 mx-2 text-xs">至</span>
                         <input 
                           type="date"
                           value={purchaseEndDate}
                           onChange={(e) => setPurchaseEndDate(e.target.value)}
-                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-32"
+                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
                         />
                       </div>
                       <button 
@@ -2905,48 +3093,47 @@ export default function App() {
                           setPurchaseStartDate('');
                           setPurchaseEndDate('');
                         }}
-                        className="bg-gray-100 text-gray-500 px-4 py-3 rounded-2xl font-bold text-sm hover:bg-gray-200 transition-colors"
+                        className="w-full sm:w-auto bg-gray-100 text-gray-500 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
                         title="清空所有篩選"
                       >
-                        <RotateCcw size={16} />
-                      </button>
-                      <div className="bg-blue-100 text-blue-600 px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 whitespace-nowrap">
-                        <Search size={14} /> 即時篩選中
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                      <button 
-                        onClick={handleDownloadPurchaseTemplate}
-                        className="p-3 text-gray-400 hover:text-blue-600 transition-colors bg-gray-50 rounded-2xl hover:bg-blue-50"
-                        title="下載匯入範本"
-                      >
-                        <FileDown size={20} />
-                      </button>
-                      <label className="cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors flex items-center gap-2">
-                        <FileUp size={16} /> CSV 匯入
-                        <input 
-                          type="file" 
-                          accept=".csv" 
-                          className="hidden" 
-                          onChange={handlePurchaseCsvImport} 
-                          disabled={isSubmitting}
-                        />
-                      </label>
-                      <button 
-                        onClick={() => setShowBatchDelete('進貨表')}
-                        className="p-3 text-red-400 hover:text-red-500 transition-colors bg-red-50 rounded-2xl hover:bg-red-100"
-                        title="批次刪除數據"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                      <button 
-                        onClick={() => { setModalType('purchase'); setEditItem(null); }}
-                        className="flex-1 md:flex-none bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
-                      >
-                        新增進貨
+                        <RotateCcw size={16} /> 重置
                       </button>
                     </div>
                   </div>
+                  
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <button 
+                      onClick={handleDownloadPurchaseTemplate}
+                      className="p-3 text-gray-400 hover:text-blue-600 transition-colors bg-gray-50 rounded-xl hover:bg-blue-50"
+                      title="下載匯入範本"
+                    >
+                      <FileDown size={20} />
+                    </button>
+                    <label className="flex-1 sm:flex-none cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-xl font-bold text-xs hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                      <FileUp size={14} /> CSV 匯入
+                      <input 
+                        type="file" 
+                        accept=".csv" 
+                        className="hidden" 
+                        onChange={handlePurchaseCsvImport} 
+                        disabled={isSubmitting}
+                      />
+                    </label>
+                    <button 
+                      onClick={() => setShowBatchDelete('進貨表')}
+                      className="p-3 text-red-400 hover:text-red-500 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
+                      title="批次刪除數據"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                    <button 
+                      onClick={() => { setModalType('purchase'); setEditItem(null); }}
+                      className="flex-1 sm:flex-none bg-blue-600 text-white px-8 py-3 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
+                    >
+                      新增進貨
+                    </button>
+                  </div>
+                </div>
 
                 <Card>
                   <Pagination 
@@ -2955,7 +3142,7 @@ export default function App() {
                     pageSize={ITEMS_PER_PAGE} 
                     onChange={setPurchasePage} 
                   />
-                  <div className="overflow-x-auto">
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-gray-100">
@@ -3015,45 +3202,95 @@ export default function App() {
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden divide-y divide-gray-100">
+                    {sortedPurch.slice((purchasePage - 1) * ITEMS_PER_PAGE, purchasePage * ITEMS_PER_PAGE).map(p => {
+                      const prod = prods.find(pr => pr.id === p.商品ID);
+                      return (
+                        <div key={p.id} className="py-5 space-y-4">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{p.進貨日期}</p>
+                               <span className={cn(
+                                  "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase inline-block mb-1",
+                                  p.訂單狀態 === '已入庫' ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"
+                                )}>
+                                  {p.訂單狀態 || '待入庫'}
+                                </span>
+                              <h4 className="font-bold text-gray-900">{prod?.商品名稱}</h4>
+                              <p className="text-[10px] text-orange-500 font-bold">#{prod?.商品代號}</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => { setEditItem(p); setModalType('purchase'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
+                                <Edit3 size={16} />
+                              </button>
+                              <button onClick={() => setShowDeleteConfirm({ table: '進貨表', id: p.id })} className="p-2 text-red-500 bg-red-50 rounded-xl">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                            <div className="grid grid-cols-2 gap-4 pb-2 border-b border-gray-200/50">
+                              <div>
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">進貨來源</p>
+                                <p className="text-sm font-bold text-gray-700">{p.進貨來源 || '--'}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">數量</p>
+                                <p className="text-base font-black text-gray-900">{p.數量} <span className="text-[10px] font-normal text-gray-400">件</span></p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">採購總額</p>
+                                <p className="text-sm font-black text-blue-600">{formatCurrency(p.金額 || (p.數量 * p.單位成本))}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">單位成本</p>
+                                <p className="text-sm font-bold text-gray-600">{formatCurrency(p.單位成本)}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] text-gray-400 italic bg-gray-50/50 p-2 rounded-lg border border-gray-100">{p.備註 || '無備註'}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </Card>
               </div>
             )}
             {activeTab === 'sales' && (
               <div className="space-y-6">
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                    <h2 className="text-2xl font-black text-gray-900 flex items-center gap-3">
-                      <ShoppingCart className="text-orange-500" size={32} />
-                      銷售訂單
-                      <span className="text-xs font-bold bg-orange-50 text-orange-500 px-3 py-1 rounded-full border border-orange-100">
-                        共 {sales.length} 筆
-                      </span>
-                    </h2>
-                  </div>
-                  <div className="flex flex-col md:flex-row items-center gap-4 bg-white p-4 rounded-3xl border border-gray-100 shadow-sm">
-                    <div className="relative flex-1 w-full flex gap-4">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                        <input 
-                          type="text" 
-                          placeholder="搜尋單號、商品名稱、代號或平台..." 
-                          value={salesSearch}
-                          onChange={(e) => setSalesSearch(e.target.value)}
-                          className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
-                        />
-                      </div>
-                      <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none">
+                <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      <input 
+                        type="text" 
+                        placeholder="搜尋單號、商品名稱、代號或平台..." 
+                        value={salesSearch}
+                        onChange={(e) => setSalesSearch(e.target.value)}
+                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
+                      />
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                      <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none w-full sm:w-auto">
                         <input 
                           type="date"
                           value={salesStartDate}
                           onChange={(e) => setSalesStartDate(e.target.value)}
-                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-32"
+                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
                         />
                         <span className="text-gray-300 mx-2 text-xs">至</span>
                         <input 
                           type="date"
                           value={salesEndDate}
                           onChange={(e) => setSalesEndDate(e.target.value)}
-                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-32"
+                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
                         />
                       </div>
                       <button 
@@ -3062,48 +3299,47 @@ export default function App() {
                            setSalesStartDate('');
                            setSalesEndDate('');
                          }}
-                         className="bg-gray-100 text-gray-500 px-4 py-3 rounded-2xl font-bold text-sm hover:bg-gray-200 transition-colors"
+                         className="w-full sm:w-auto bg-gray-100 text-gray-500 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-gray-200 transition-colors flex items-center justify-center gap-2"
                          title="清空所有篩選"
                       >
-                         <RotateCcw size={16} />
-                      </button>
-                      <div className="bg-orange-100 text-orange-600 px-6 py-3 rounded-2xl font-bold text-xs flex items-center gap-2 whitespace-nowrap">
-                        <Search size={14} /> 即時篩選中
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                      <button 
-                         onClick={handleDownloadSaleTemplate}
-                         className="p-3 text-gray-400 hover:text-[#111827] transition-colors bg-gray-50 rounded-2xl hover:bg-gray-100"
-                         title="下載匯入範本"
-                      >
-                         <FileDown size={20} />
-                      </button>
-                      <label className="cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors flex items-center gap-2">
-                         <FileUp size={16} /> CSV 匯入
-                         <input 
-                           type="file" 
-                           accept=".csv" 
-                           className="hidden" 
-                           onChange={handleSaleCsvImport} 
-                           disabled={isSubmitting}
-                         />
-                      </label>
-                      <button 
-                        onClick={() => setShowBatchDelete('銷貨表')}
-                        className="p-3 text-red-400 hover:text-red-500 transition-colors bg-red-50 rounded-2xl hover:bg-red-100"
-                        title="批次刪除數據"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                      <button 
-                        onClick={() => { setModalType('sale'); setEditItem(null); }}
-                        className="flex-1 md:flex-none bg-[#111827] text-white px-8 py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
-                      >
-                        新建訂單
+                         <RotateCcw size={16} /> 重置
                       </button>
                     </div>
                   </div>
+                  
+                  <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <button 
+                       onClick={handleDownloadSaleTemplate}
+                       className="p-3 text-gray-400 hover:text-[#111827] transition-colors bg-gray-50 rounded-xl hover:bg-gray-100"
+                       title="下載匯入範本"
+                    >
+                       <FileDown size={20} />
+                    </button>
+                    <label className="flex-1 sm:flex-none cursor-pointer bg-gray-50 text-gray-600 px-6 py-3 rounded-xl font-bold text-xs hover:bg-gray-100 transition-colors flex items-center justify-center gap-2">
+                       <FileUp size={14} /> CSV 匯入
+                       <input 
+                         type="file" 
+                         accept=".csv" 
+                         className="hidden" 
+                         onChange={handleSaleCsvImport} 
+                         disabled={isSubmitting}
+                       />
+                    </label>
+                    <button 
+                      onClick={() => setShowBatchDelete('銷貨表')}
+                      className="p-3 text-red-100 hover:text-red-500 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
+                      title="批次刪除數據"
+                    >
+                      <Trash2 size={20} />
+                    </button>
+                    <button 
+                      onClick={() => { setModalType('sale'); setEditItem(null); }}
+                      className="flex-1 sm:flex-none bg-[#111827] text-white px-8 py-3 rounded-xl font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
+                    >
+                      新建訂單
+                    </button>
+                  </div>
+                </div>
 
                 <Card>
                   <Pagination 
@@ -3112,7 +3348,7 @@ export default function App() {
                     pageSize={ITEMS_PER_PAGE} 
                     onChange={setSalesPage} 
                   />
-                  <div className="overflow-x-auto">
+                  <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
                         <tr className="border-b border-gray-100">
@@ -3183,6 +3419,76 @@ export default function App() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden divide-y divide-gray-100">
+                    {sortedSales.slice((salesPage - 1) * ITEMS_PER_PAGE, salesPage * ITEMS_PER_PAGE).map(s => {
+                      const prod = prods.find(pr => pr.id === s.商品ID);
+                      return (
+                        <div key={s.id} className="py-5 space-y-4">
+                          <div className="flex justify-between items-start">
+                            <div className="space-y-1">
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{s.銷貨日期}</p>
+                              <p className="text-sm font-black text-gray-900">{s.訂單編號}</p>
+                              <span className="inline-block px-1.5 py-0.5 rounded-md bg-gray-100 text-[9px] font-bold text-gray-500 uppercase">
+                                {s.平台 || '未知平台'}
+                              </span>
+                            </div>
+                            <div className="flex gap-1">
+                              <button onClick={() => handleViewBatches(s)} className="p-2 text-emerald-500 bg-emerald-50 rounded-xl">
+                                <Search size={16} />
+                              </button>
+                              <button onClick={() => { setEditItem(s); setModalType('sale'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
+                                <Edit3 size={16} />
+                              </button>
+                              <button onClick={() => setShowDeleteConfirm({ table: '銷貨表', id: s.id })} className="p-2 text-red-500 bg-red-50 rounded-xl">
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
+                            <div className="flex justify-between items-center pb-2 border-b border-gray-200/50">
+                              <div className="min-w-0 pr-2">
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">商品明細</p>
+                                <p className="text-sm font-bold text-gray-900 truncate">{prod?.商品名稱}</p>
+                                <p className="text-[10px] text-orange-500 font-bold">#{prod?.商品代號}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">數量</p>
+                                <p className="text-base font-black text-gray-900">{s.數量} <span className="text-[10px] font-normal text-gray-400">件</span></p>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">銷售總額</p>
+                                <p className="text-sm font-black text-gray-900">{formatCurrency(s.銷售金額)}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">預估毛利</p>
+                                <p className="text-sm font-black text-emerald-600">
+                                  {formatCurrency(s.毛利 ?? ((s.銷售金額 || 0) - ((s.當前單位成本 || 0) * (s.數量 || 0))))}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between">
+                            <span className={cn(
+                              "px-3 py-1 rounded-full text-[10px] font-bold uppercase",
+                              s.訂單狀態 === '已完成' ? "bg-emerald-100 text-emerald-600" :
+                              s.訂單狀態 === '已出貨' ? "bg-blue-100 text-blue-600" :
+                              "bg-amber-100 text-amber-600"
+                            )}>
+                              {s.訂單狀態}
+                            </span>
+                            <p className="text-[10px] text-gray-400 italic max-w-[60%] truncate">{s.備註 || '無備註'}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </Card>
               </div>
