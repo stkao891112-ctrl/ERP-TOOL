@@ -66,7 +66,15 @@ async function backupTable(tableName) {
 }
 
 async function runBackup() {
-  console.log('--- 開始備份作業 ---');
+  console.log('--- 備份作業開始 ---');
+  console.log('Supabase URL:', supabaseUrl ? '已設定' : '未設定');
+  console.log('Supabase Key:', supabaseKey ? '已設定' : '未設定');
+  
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('錯誤：請在 GitHub Secrets 中設定 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY');
+    process.exit(1);
+  }
+
   for (const table of TABLES) {
     await backupTable(table);
   }

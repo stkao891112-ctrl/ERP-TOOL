@@ -9,19 +9,21 @@ on:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20' # 回到 20 比較穩，那些警告只是警告，不影響執行
 
       - name: Install dependencies
-        run: npm install @supabase/supabase-js
+        run: npm install
 
       - name: Run backup script
         env:
