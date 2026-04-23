@@ -43,6 +43,8 @@ jobs:
               echo "數據無變動，無需提交。"
             else
               git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
+              # 先拉取最新變動，解決 push 被拒絕的問題
+              git pull --rebase origin main
               git push
             fi
           else
