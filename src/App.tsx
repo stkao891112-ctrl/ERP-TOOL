@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'motion/react';
 import Papa from 'papaparse';
+import { sb } from './lib/supabase';
 import { 
   BarChart3, 
   Package, 
@@ -64,11 +64,6 @@ import { twMerge } from 'tailwind-merge';
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
-
-// --- Supabase Client ---
-const SUPABASE_URL = 'https://ebytyftmegyqlvywtfmd.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_EJjleGIZ-nkJOMGjrMQHlQ_flZHnuO3';
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- Types ---
 type Category = {
@@ -149,7 +144,7 @@ const formatCurrency = (val: number | null | undefined) => {
 
 // --- Components ---
 
-const AuthScreen = () => {
+const AuthScreen = ({ onGuestLogin }: { onGuestLogin: () => void }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -175,6 +170,23 @@ const AuthScreen = () => {
     }
   };
 
+  const handleGuestEntry = async () => {
+    setErrorMsg(null);
+    setLoading(true);
+    try {
+      // 嘗試以預設訪客帳號登入
+      const { error } = await sb.auth.signInWithPassword({ 
+        email: 'guest@demo.com', 
+        password: 'guest123456' 
+      });
+      if (error) throw new Error('訪客帳號目前不可用，請聯繫管理員。');
+    } catch (error: any) {
+      setErrorMsg(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-50/50 via-transparent to-transparent">
       <motion.div 
@@ -193,7 +205,7 @@ const AuthScreen = () => {
         <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-1.5 h-6 bg-brand-500 rounded-full" />
-            <h2 className="text-xl font-bold text-gray-900">管理員登入</h2>
+            <h2 className="text-xl font-bold text-gray-900">歡迎登入</h2>
           </div>
           
           <form onSubmit={handleAuth} className="space-y-6">
@@ -245,7 +257,7 @@ const AuthScreen = () => {
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>授權檢查中...</span>
+                  <span>驗證中...</span>
                 </>
               ) : (
                 <>
@@ -255,12 +267,31 @@ const AuthScreen = () => {
               )}
             </button>
           </form>
+
+          <div className="relative my-8">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-100"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase font-bold text-gray-400">
+              <span className="bg-white px-4">或</span>
+            </div>
+          </div>
+
+          <button 
+            type="button"
+            onClick={handleGuestEntry}
+            disabled={loading}
+            className="w-full bg-white border-2 border-brand-500/20 text-brand-600 font-bold py-5 rounded-2xl hover:bg-brand-50 active:scale-[0.98] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+          >
+            <Box size={18} />
+            <span>訪客試用體驗</span>
+          </button>
         </div>
 
         <div className="mt-10 bg-brand-50/50 border border-brand-100 rounded-2xl p-4 flex gap-3">
           <AlertCircle size={18} className="text-brand-500 shrink-0" />
           <p className="text-[11px] text-brand-800 font-medium leading-relaxed">
-            安全提醒：本系統不開放公開註冊。新管理員帳號須由現有系統負責人於背景管理端手動授權。若有任何存取疑問，請聯繫系統架構師。
+            訪客模式提醒：試用期間產生的所有資料將於登出或下次登入時清空。本帳號同一時間僅限一人操作以維持資料庫一致性。
           </p>
         </div>
       </motion.div>
@@ -646,12 +677,14 @@ export default function App() {
   // Modals Overlay
   const [modalType, setModalType] = useState<string | null>(null);
   const [editItem, setEditItem] = useState<any>(null);
-  const [showBatchDelete, setShowBatchDelete] = useState<'進貨表' | '銷貨表' | null>(null);
+  const [showBatchDelete, setShowBatchDelete] = useState<'進貨表' | '銷貨表' | '其他收支表' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{table: string, id: string} | null>(null);
 
   // Auth State
   const [session, setSession] = useState<any>(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+  const [isGuestCleaned, setIsGuestCleaned] = useState(false);
 
   // Search/Filters (Inputs)
   const [invSearch, setInvSearch] = useState('');
@@ -786,18 +819,24 @@ export default function App() {
 
   // --- Data Fetching Utils ---
   const fetchAll = async (tableName: string, orderCol: string, ascending = false, secondaryOrder?: { col: string, asc: boolean }) => {
+    if (!session?.user?.id) return [];
     let allData: any[] = [];
     let from = 0;
     let to = 999;
     let hasMore = true;
 
     while (hasMore) {
-      let query = sb.from(tableName).select('*').order(orderCol, { ascending }).range(from, to);
+      let query = sb.from(tableName)
+        .select('*')
+        .eq('user_id', session.user.id) // 關鍵：只抓取屬於當前使用者的資料
+        .order(orderCol, { ascending })
+        .range(from, to);
+      
       if (secondaryOrder) {
         query = query.order(secondaryOrder.col, { ascending: secondaryOrder.asc });
       }
       const { data, error } = await query;
-
+      
       if (error) {
         console.error(`Fetch error for ${tableName}:`, error);
         break;
@@ -814,18 +853,52 @@ export default function App() {
       } else {
         hasMore = false;
       }
-      
-      // 安全機制：防止無限循環
       if (from > 20000) break;
     }
     return allData;
   };
 
-  // --- Data Fetching ---
+  const cleanGuestDataInternal = async (uid: string) => {
+    try {
+      console.log('Attempting to clean guest data for:', uid);
+      setLoading(true);
+      
+      // Clear local state immediately to avoid showing old data
+      setCats([]);
+      setProds([]);
+      setPurch([]);
+      setSales([]);
+      setOthers([]);
+
+      const tables = ['銷貨表', '進貨表', '其他收支表', '庫存總表', '商品分類表'];
+      
+      // Use for...of to ensure sequential deletion or at least catch all errors properly
+      for (const t of tables) {
+        const { error } = await sb.from(t).delete().eq('user_id', uid);
+        if (error) {
+          console.warn(`Clean ${t} failed:`, error.message);
+        }
+      }
+
+      console.log('Guest data reset complete for:', uid);
+      sessionStorage.setItem('guest_cleaned', 'true');
+      setIsGuestCleaned(true);
+      
+      // Wait a bit to ensure DB consistency before fetching
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await fetchData();
+    } catch (err) {
+      console.error('Guest clean internal error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchData = async () => {
+    if (!session?.user?.id) return;
     try {
       const [cData, pData, purData, sData, oData] = await Promise.all([
-        sb.from('商品分類表').select('*').order('建立時間', { ascending: true }),
+        sb.from('商品分類表').select('*').eq('user_id', session.user.id).order('建立時間', { ascending: true }),
         fetchAll('庫存總表', '更新時間', false),
         fetchAll('進貨表', '進貨日期', false, { col: '建立時間', asc: false }),
         fetchAll('銷貨表', '銷貨日期', false, { col: '訂單編號', asc: false }),
@@ -838,23 +911,92 @@ export default function App() {
       setSales(sData as any[] || []);
       setOthers(oData as any[] || []);
     } catch (err) {
-      console.error(err);
+      console.error('FetchData error:', err);
     } finally {
       setLoading(false);
       setShowSplash(false);
     }
   };
 
+  const [authError, setAuthError] = useState<string | null>(null);
+
   useEffect(() => {
     // Initial Session Check
-    sb.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setCheckingSession(false);
-    });
+    const sessionTimeout = setTimeout(() => {
+      if (checkingSession) {
+        console.warn('Session check timed out');
+        setCheckingSession(false);
+      }
+    }, 8000); // 8s safety net
+
+    sb.auth.getSession()
+      .then(async ({ data: { session }, error }: any) => {
+        if (error) {
+          console.error('Session error:', error);
+          setAuthError(error.message);
+        }
+        setSession(session);
+        
+        // Basic guest detection for initial state, cleanup is handled in onAuthStateChange
+        if (session?.user?.email === 'guest@demo.com') {
+          setIsGuest(true);
+          // Check if already cleaned in this session
+          if (sessionStorage.getItem('guest_cleaned')) {
+            setIsGuestCleaned(true);
+          }
+        }
+
+        // We don't call cleanGuestDataInternal here anymore; 
+        // onAuthStateChange handles event === 'INITIAL_SESSION' or 'SIGNED_IN'
+        
+        setCheckingSession(false);
+        clearTimeout(sessionTimeout);
+      })
+      .catch((err: any) => {
+        console.error('Session check failed:', err);
+        setAuthError('無法連接到授權伺服器，請檢查網路連線。');
+        setCheckingSession(false);
+        clearTimeout(sessionTimeout);
+      });
 
     // Listen for Auth Changes
-    const { data: { subscription } } = sb.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = sb.auth.onAuthStateChange(async (event: string, session: any) => {
+      console.log('Auth event:', event, 'Session user:', session?.user?.id);
       setSession(session);
+      
+      // 訪客特殊邏輯
+      if (session?.user?.email === 'guest@demo.com') {
+        setIsGuest(true);
+        const hasCleaned = sessionStorage.getItem('guest_cleaned');
+        
+        // 只有在登入事件或是初次載入且尚未標記清理時執行
+        if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !hasCleaned)) {
+          console.log('Guest cleanup triggered by:', event);
+          setIsGuestCleaned(false);
+          // Don't await so we don't block setCheckingSession(false)
+          cleanGuestDataInternal(session.user.id);
+        } else if (hasCleaned) {
+          setIsGuestCleaned(true);
+        }
+      } else {
+        setIsGuest(false);
+        setIsGuestCleaned(false);
+      }
+      
+      // 登出時清空 sessionStorage 標記
+      if (event === 'SIGNED_OUT') {
+        console.log('User signed out, clearing guest markers');
+        sessionStorage.removeItem('guest_cleaned');
+        setIsGuestCleaned(false);
+        setIsGuest(false);
+      }
+
+      if (session?.user?.email) {
+        localStorage.setItem('last_user', session.user.email);
+      }
+
+      setCheckingSession(false);
+      clearTimeout(sessionTimeout);
     });
 
     return () => subscription.unsubscribe();
@@ -863,6 +1005,13 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
 
+    // 如果是訪客且尚未清理完畢，則不執行此處的 fetchData (cleanGuestDataInternal 會自己 fetch)
+    if (isGuest && !isGuestCleaned) {
+      console.log('Guest detected, waiting for cleanup before fetching data...');
+      return;
+    }
+
+    console.log('FetchData triggered. isGuest:', isGuest, 'isGuestCleaned:', isGuestCleaned);
     fetchData();
     const channel = sb.channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
@@ -879,34 +1028,51 @@ export default function App() {
       sb.removeChannel(channel);
       clearTimeout(timer);
     };
-  }, [session]);
+  }, [session, isGuest, isGuestCleaned]);
 
-  // --- Handlers ---
+  const cleanGuestData = async () => {
+    if (!isGuest || !session?.user?.id) return;
+    
+    if (!window.confirm('確定要清空當前試用環境的所有資料嗎？這將無法復原。')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await cleanGuestDataInternal(session.user.id);
+      alert('環境已重置，資料已全數清空。');
+    } catch (err) {
+      console.error('訪客資料清除失敗:', err);
+      alert('重置失敗，請稍後再試。');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const syncInventory = async (prodId: string) => {
     if (!prodId) return;
     try {
-      // 1. 抓取進貨數據 (使用 fetchAll 確保抓取全量資料，克服 1000 筆限制)
+      // 1. 抓取進貨數據 (使用 fetchAll 確保抓取全量資料)
       const purData = await fetchAll('進貨表', '進貨日期', true, { col: '建立時間', asc: true });
-      const filteredPur = purData.filter(p => p.商品ID === prodId);
+      const filteredPur = purData.filter((p: any) => p.商品ID === prodId);
 
-      // 2. 抓取銷貨數據 (使用 fetchAll 確保全量)
+      // 2. 抓取銷貨數據
       const saleData = await fetchAll('銷貨表', '銷貨日期', true, { col: '訂單編號', asc: true });
-      const filteredSale = saleData.filter(s => s.商品ID === prodId);
+      const filteredSale = saleData.filter((s: any) => s.商品ID === prodId);
 
-      // 構建 FIFO 進貨池 (使用原始快照進行計算)
-      const purchasePool = filteredPur.map(p => ({
+      // FIFO 進貨池
+      const purchasePool = filteredPur.map((p: any) => ({
         qty: p.數量 || 0,
         cost: p.單位成本 || 0
       }));
 
-      const totalPurQty = purchasePool.reduce((sum, p) => sum + p.qty, 0);
-      const totalPurCost = purchasePool.reduce((sum, p) => sum + (p.qty * p.cost), 0);
-      const totalSaleQty = filteredSale.reduce((sum, s) => sum + (s.數量 || 0), 0);
+      const totalPurQty = purchasePool.reduce((sum: number, p: any) => sum + p.qty, 0);
+      const totalPurCost = purchasePool.reduce((sum: number, p: any) => sum + (p.qty * p.cost), 0);
+      const totalSaleQty = filteredSale.reduce((sum: number, s: any) => sum + (s.數量 || 0), 0);
 
       let totalProfit = 0;
       const profitUpdates = [];
 
-      // 執行 FIFO 匹配
       for (const sale of filteredSale) {
         let remainingToMatch = sale.數量 || 0;
         let saleCost = 0;
@@ -921,7 +1087,6 @@ export default function App() {
           remainingToMatch -= consume;
         }
 
-        // 處理超賣情況 (使用平均成本作為回退機制)
         if (remainingToMatch > 0) {
           const fallbackCost = totalPurQty > 0 ? (totalPurCost / totalPurQty) : 0;
           saleCost += remainingToMatch * fallbackCost;
@@ -932,18 +1097,19 @@ export default function App() {
         
         totalProfit += calculatedProfit;
 
-        // 只有在數據有變動時才加入更新隊列
         if (sale.毛利 !== calculatedProfit || sale.當前單位成本 !== actualUnitCost) {
           profitUpdates.push(
             sb.from('銷貨表').update({ 
               毛利: calculatedProfit, 
-              當前單位成本: actualUnitCost 
-            }).eq('id', sale.id)
+              當前單位成本: actualUnitCost,
+              user_id: session?.user?.id
+            })
+            .eq('id', sale.id)
+            .eq('user_id', session?.user?.id)
           );
         }
       }
 
-      // 批次執行更新
       if (profitUpdates.length > 0) {
         await Promise.all(profitUpdates);
       }
@@ -957,10 +1123,13 @@ export default function App() {
         買入數量: totalPurQty,
         賣出數量: totalSaleQty,
         平均成本: avgCost,
-        平均獲利: avgProfit
-      }).eq('id', prodId);
+        平均獲利: avgProfit,
+        user_id: session?.user?.id
+      })
+      .eq('id', prodId)
+      .eq('user_id', session?.user?.id);
     } catch (err) {
-      console.error('FIFO Sync process failed:', err);
+      console.error('FIFO Sync failed:', err);
     }
   };
 
@@ -976,24 +1145,26 @@ export default function App() {
         setSyncProgress(progress);
       }
       setShowSyncComplete(true);
-      fetchData();
+      await fetchData();
     } catch (err) {
-      console.error(err);
+      console.error('syncAllInventory error:', err);
       alert('同步過程中發生錯誤');
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const togglePinProduct = async (id: string, currentStatus: any) => {
+
+  const togglePinProduct = async (id: string, currentPin: any) => {
     try {
-      // 根據使用者說明的 Y/N 邏輯更新
-      const newStatus = (currentStatus === 'Y' || currentStatus === true) ? 'N' : 'Y';
-      const { error } = await sb.from('庫存總表').update({ 是否置頂: newStatus }).eq('id', id);
+      const isPinned = currentPin === 'Y' || currentPin === true;
+      const { error } = await sb.from('庫存總表')
+        .update({ 是否置頂: !isPinned })
+        .eq('id', id);
       if (error) throw error;
       fetchData();
-    } catch (err: any) {
-      alert('置頂操作失敗：' + err.message);
+    } catch (err) {
+      console.error('togglePinProduct error:', err);
     }
   };
 
@@ -1003,28 +1174,34 @@ export default function App() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const name = formData.get('name') as string;
-    
+    const code = (formData.get('code') as string || '').toUpperCase();
+
     try {
       if (editItem) {
-        // 編輯模式：只更新名稱，不更新代號 (避免商品代號關聯失效)
-        const { error } = await sb.from('商品分類表').update({ 分類名稱: name }).eq('id', editItem.id);
-        if (error) alert(error.message);
+        const { error } = await sb.from('商品分類表')
+          .update({ 分類名稱: name, user_id: session?.user?.id })
+          .eq('id', editItem.id)
+          .eq('user_id', session?.user?.id);
+        if (error) throw error;
       } else {
-        // 新增模式：需包含代號
-        const code = formData.get('code') as string;
-        const { error } = await sb.from('商品分類表').insert([{ 分類名稱: name, 分類代號: code }]);
-        if (error) alert(error.message);
+        const { error } = await sb.from('商品分類表')
+          .insert([{ 
+            分類名稱: name, 
+            分類代號: code,
+            user_id: session?.user?.id
+          }]);
+        if (error) throw error;
       }
       setModalType(null);
       setEditItem(null);
       fetchData();
-    } catch (err) {
-      console.error(err);
-      alert('分類儲存出錯');
+    } catch (err: any) {
+      alert('儲存品類失敗：' + (err.message || '未知錯誤'));
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const handleSaveProduct = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1051,15 +1228,19 @@ export default function App() {
         // 編輯邏輯：通常不建議修改商品代號，這裡只更新名稱與狀態
         const { error } = await sb.from('庫存總表').update({
           商品名稱: name, 
-          目前狀態: status
-        }).eq('id', editItem.id);
+          目前狀態: status,
+          user_id: session?.user?.id
+        })
+        .eq('id', editItem.id)
+        .eq('user_id', session?.user?.id);
         if (error) alert(error.message);
       } else {
       // ✅ 依照需求：即時從 Supabase 抓取該分類目前的商品
       const { data: existingProds, error: fetchErr } = await sb
         .from('庫存總表')
         .select('商品代號')
-        .eq('分類ID', catId);
+        .eq('分類ID', catId)
+        .eq('user_id', session?.user?.id);
         
         if (fetchErr) {
           setIsSubmitting(false);
@@ -1068,7 +1249,7 @@ export default function App() {
 
       // 計算最新流水號
       let maxSeq = 0;
-      (existingProds || []).forEach(p => {
+      (existingProds || []).forEach((p: any) => {
         if (p.商品代號 && p.商品代號.startsWith(cat.分類代號)) {
           const numStr = p.商品代號.replace(cat.分類代號, '');
           const num = parseInt(numStr, 10);
@@ -1084,7 +1265,8 @@ export default function App() {
         買入數量: stock, // 初始庫存視為買入
         賣出數量: 0,
         商品代號: newCode, 
-        目前狀態: status
+        目前狀態: status,
+        user_id: session?.user?.id // 記錄擁有者
       }]);
       if (error) alert(error.message);
     }
@@ -1123,11 +1305,22 @@ export default function App() {
       
       if (editItem) {
         res = await sb.from('進貨表').update({
-          進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: Number(formData.get('amount')), 訂單狀態: status, 進貨來源: source, 備註: note
-        }).eq('id', editItem.id);
+          進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: Number(formData.get('amount')), 訂單狀態: status, 進貨來源: source, 備註: note,
+          user_id: session?.user?.id
+        })
+        .eq('id', editItem.id)
+        .eq('user_id', session?.user?.id);
       } else {
         res = await sb.from('進貨表').insert([{
-          進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: Number(formData.get('amount')), 訂單狀態: status || '待入庫', 進貨來源: source, 備註: note
+          進貨日期: date, 
+          商品ID: prodId, 
+          數量: qty, 
+          單位成本: cost, 
+          金額: Number(formData.get('amount')), 
+          訂單狀態: status || '待入庫', 
+          進貨來源: source, 
+          備註: note,
+          user_id: session?.user?.id // 記錄擁有者
         }]);
       }
       
@@ -1178,18 +1371,22 @@ export default function App() {
 
       if (editItem) {
         res = await sb.from('銷貨表').update({
-          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status, 備註: finalNote
-        }).eq('id', editItem.id);
+          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status, 備註: finalNote,
+          user_id: session?.user?.id
+        })
+        .eq('id', editItem.id)
+        .eq('user_id', session?.user?.id);
       } else {
         const datePrefix = normalizeDateToOrderPrefix(date || today());
         const { data: existingSales, error: seqErr } = await sb.from('銷貨表')
           .select('訂單編號')
-          .like('訂單編號', `${datePrefix}%`);
+          .like('訂單編號', `${datePrefix}%`)
+          .eq('user_id', session?.user?.id);
         
         if (seqErr) console.warn('Seq fetch error:', seqErr);
 
         let maxSeq = 0;
-        (existingSales || []).forEach(s => {
+        (existingSales || []).forEach((s: any) => {
           if (s.訂單編號 && s.訂單編號.startsWith(datePrefix)) {
             const seq = parseInt(s.訂單編號.replace(datePrefix, ''), 10);
             if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
@@ -1207,7 +1404,8 @@ export default function App() {
           訂單狀態: status || '未出貨', 
           備註: finalNote,
           當前單位成本: 0, 
-          毛利: 0         
+          毛利: 0,
+          user_id: session?.user?.id // 記錄擁有者
         }]);
       }
 
@@ -1244,12 +1442,16 @@ export default function App() {
     try {
       if (editItem) {
         const { error } = await sb.from('其他收支表').update({
-          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
-        }).eq('id', editItem.id);
+          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note,
+          user_id: session?.user?.id
+        })
+        .eq('id', editItem.id)
+        .eq('user_id', session?.user?.id);
         if (error) alert(error.message);
       } else {
         const { error } = await sb.from('其他收支表').insert([{
-          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
+          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note,
+          user_id: session?.user?.id // 記錄擁有者
         }]);
         if (error) alert(error.message);
       }
@@ -1345,7 +1547,7 @@ export default function App() {
               .eq('分類ID', catId);
             
             let maxSeq = 0;
-            (existingCodes || []).forEach(p => {
+            (existingCodes || []).forEach((p: any) => {
               if (p.商品代號) {
                 const numStr = p.商品代號.replace(group.cat.分類代號, '');
                 const num = parseInt(numStr, 10);
@@ -1353,7 +1555,7 @@ export default function App() {
               }
             });
 
-            group.items.forEach((item, index) => {
+            group.items.forEach((item: any, index: number) => {
               const newSeq = maxSeq + index + 1;
               const newCode = group.cat.分類代號 + String(newSeq).padStart(3, '0');
               insertData.push({
@@ -1364,7 +1566,8 @@ export default function App() {
                 庫存數量: 0,
                 買入數量: 0,
                 賣出數量: 0,
-                平均成本: 0
+                平均成本: 0,
+                user_id: session?.user?.id // 記錄擁有者
               });
             });
             currentCatIdx++;
@@ -1490,7 +1693,8 @@ export default function App() {
             進貨日期: date, 
             進貨來源: source, 
             訂單狀態: status,
-            備註: note 
+            備註: note,
+            user_id: session?.user?.id
           });
           setImportProgress(Math.round(((i + 1) / rows.length) * 40)); // 前 40% 校驗
         }
@@ -1647,7 +1851,7 @@ export default function App() {
                 .like('訂單編號', `${datePrefix}%`);
               
               let maxSeq = 0;
-              (existingSales || []).forEach(s => {
+              (existingSales || []).forEach((s: any) => {
                 const seq = parseInt(s.訂單編號.replace(datePrefix, ''), 10);
                 if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
               });
@@ -1668,7 +1872,8 @@ export default function App() {
               訂單狀態: item.訂單狀態,
               備註: item.備註,
               當前單位成本: item.unitCost,
-              毛利: profit
+              毛利: profit,
+              user_id: session?.user?.id
             });
             setImportProgress(20 + Math.round(((i + 1) / validItems.length) * 40));
           }
@@ -1777,7 +1982,8 @@ export default function App() {
             收支類型: type,
             金額: amount, 
             項目內容: item, 
-            備註: note 
+            備註: note,
+            user_id: session?.user?.id
           });
           setImportProgress(Math.round(((i + 1) / rows.length) * 50));
         }
@@ -1836,29 +2042,32 @@ export default function App() {
     
     try {
       if (table === '商品分類表') {
-        // 級聯刪除分類下的所有商品與訂單
-        const { data: catProds } = await sb.from('庫存總表').select('id').eq('分類ID', id);
-        const prodIds = (catProds || []).map(p => p.id);
+        // 級聯刪除分類下的所有商品與訂單 (需嚴格限制在該使用者下)
+        const { data: catProds } = await sb.from('庫存總表')
+          .select('id')
+          .eq('分類ID', id)
+          .eq('user_id', session?.user?.id);
+        const prodIds = (catProds || []).map((p: any) => p.id);
         
         if (prodIds.length > 0) {
-          await sb.from('銷貨表').delete().in('商品ID', prodIds);
-          await sb.from('進貨表').delete().in('商品ID', prodIds);
-          await sb.from('庫存總表').delete().in('id', prodIds);
+          await sb.from('銷貨表').delete().in('商品ID', prodIds).eq('user_id', session?.user?.id);
+          await sb.from('進貨表').delete().in('商品ID', prodIds).eq('user_id', session?.user?.id);
+          await sb.from('庫存總表').delete().in('id', prodIds).eq('user_id', session?.user?.id);
         }
       } else if (table === '庫存總表') {
         // 級聯刪除該商品的所有訂單
-        await sb.from('銷貨表').delete().eq('商品ID', id);
-        await sb.from('進貨表').delete().eq('商品ID', id);
+        await sb.from('銷貨表').delete().eq('商品ID', id).eq('user_id', session?.user?.id);
+        await sb.from('進貨表').delete().eq('商品ID', id).eq('user_id', session?.user?.id);
       }
 
       // 如果是單一進貨或銷貨刪除，需要先抓到 商品ID 以同步庫存
       let prodIdToSync = null;
       if (table === '進貨表' || table === '銷貨表') {
-        const { data } = await sb.from(table).select('商品ID').eq('id', id).single();
+        const { data } = await sb.from(table).select('商品ID').eq('id', id).eq('user_id', session?.user?.id).single();
         if (data) prodIdToSync = data.商品ID;
       }
 
-      const { error } = await sb.from(table).delete().eq('id', id);
+      const { error } = await sb.from(table).delete().eq('id', id).eq('user_id', session?.user?.id);
       if (error) {
         alert(error.message);
       } else if (prodIdToSync) {
@@ -1898,7 +2107,10 @@ export default function App() {
     try {
       const dateCol = table === '進貨表' ? '進貨日期' : 
                      table === '銷貨表' ? '銷貨日期' : '日期';
-      let query = sb.from(table).delete().gte(dateCol, startDate).lte(dateCol, endDate);
+      let query = sb.from(table).delete()
+        .eq('user_id', session?.user?.id) // 安全檢查
+        .gte(dateCol, startDate)
+        .lte(dateCol, endDate);
 
       if (pName) {
         const product = prods.find(p => p.商品名稱 === pName);
@@ -2214,19 +2426,47 @@ export default function App() {
 
   if (checkingSession || (session && loading)) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center gap-4">
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full"
-        />
-        <p className="text-gray-500 font-medium animate-pulse">{checkingSession ? "驗證權限中..." : "系統加載中..."}</p>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+        {authError ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-sm w-full bg-white p-8 rounded-3xl shadow-xl border border-red-50"
+          >
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <AlertCircle className="text-red-500" size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">連線發生錯誤</h3>
+            <p className="text-sm text-gray-500 mb-8 font-medium leading-relaxed">{authError}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full bg-[#111827] text-white font-bold py-4 rounded-xl hover:opacity-90 transition-all flex items-center justify-center gap-2"
+            >
+              <RefreshCw size={18} />
+              <span>重新整理頁面</span>
+            </button>
+          </motion.div>
+        ) : (
+          <>
+            <motion.div 
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+              className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full mb-4"
+            />
+            <p className="text-gray-500 font-medium animate-pulse">
+              {checkingSession ? "驗證權限中..." : "系統加載中..."}
+            </p>
+            <p className="text-[10px] text-gray-300 font-bold uppercase tracking-widest mt-2">
+              Secure Cloud Connection via Supabase
+            </p>
+          </>
+        )}
       </div>
     );
   }
 
   if (!session) {
-    return <AuthScreen />;
+    return <AuthScreen onGuestLogin={() => {}} />;
   }
 
   const toggleInvSort = (key: 'code' | 'cost' | 'stock' | 'status') => {
@@ -2236,6 +2476,10 @@ export default function App() {
       setInvSortKey(key);
       setInvSortDir('asc');
     }
+  };
+
+  const handleSignOut = async () => {
+    sb.auth.signOut();
   };
 
   const SortIcon = ({ sKey }: { sKey: string }) => {
@@ -2294,6 +2538,16 @@ export default function App() {
         </nav>
 
         <div className="p-6 space-y-4">
+          <div className="hidden xl:block bg-white/5 rounded-2xl p-4 border border-white/10">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">目前工作空間</p>
+            </div>
+            <p className="text-xs text-white font-medium truncate opacity-80" title={session?.user?.email}>
+              {isGuest ? "訪客試用環境" : session?.user?.email}
+            </p>
+            <p className="text-[10px] text-gray-500 mt-1">資料庫：獨立隔離中</p>
+          </div>
           <div className="hidden xl:flex flex-wrap items-center gap-2 px-2 pb-2 border-b border-white/5">
             {[
               { id: 'orange', color: '#f97316', name: '橘色' },
@@ -2319,7 +2573,7 @@ export default function App() {
             <p className="text-xs text-gray-300">雲端同步已開啟</p>
           </div>
           <button 
-            onClick={() => sb.auth.signOut()}
+            onClick={handleSignOut}
             className="w-full flex items-center justify-center xl:justify-start gap-4 p-4 xl:px-6 rounded-2xl transition-all duration-200 text-gray-400 hover:text-red-400 hover:bg-red-500/10 group"
           >
             <LogOut size={20} />
@@ -2350,7 +2604,7 @@ export default function App() {
           </button>
         ))}
         <button 
-          onClick={() => { if(window.confirm('確定要登出系統嗎？')) sb.auth.signOut(); }}
+          onClick={handleSignOut}
           className="p-3 text-gray-500"
         >
           <LogOut size={20} />
@@ -2359,6 +2613,24 @@ export default function App() {
 
       {/* --- Main Content --- */}
       <main className="flex-1 lg:ml-20 xl:ml-64 min-h-screen px-4 py-8 xl:px-12 xl:py-10 pb-32 lg:pb-10">
+        {isGuest && (
+          <div className="mb-6 bg-orange-50 border border-orange-100 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-3">
+              <AlertCircle size={18} className="text-orange-500" />
+              <p className="text-xs font-bold text-orange-800">
+                您目前處於訪客試用模式。所有錄入資料將於下次登出入時自動清空。
+              </p>
+            </div>
+            <button 
+              onClick={cleanGuestData}
+              disabled={loading}
+              className="text-[10px] font-black bg-white text-orange-600 px-3 py-2 rounded-xl border border-orange-200 hover:bg-orange-600 hover:text-white hover:border-orange-600 transition-all flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+            >
+              <RotateCcw size={12} className={cn(loading && "animate-spin")} />
+              <span>立刻重置環境</span>
+            </button>
+          </div>
+        )}
         {/* Top Bar */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -2972,11 +3244,11 @@ export default function App() {
                                 <div className="flex justify-end gap-2">
                                   <button 
                                     onClick={() => togglePinProduct(p.id, p.是否置頂)} 
-                                    className={cn("p-2 transition-colors rounded-xl flex items-center gap-1", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-brand-500 bg-brand-50" : "text-gray-400 hover:bg-gray-100")}
-                                    title={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "取消置頂" : "設為置頂"}
+                                    className={cn("p-2 transition-colors rounded-xl flex items-center gap-1", (p.是否置頂 === true) ? "text-brand-500 bg-brand-50" : "text-gray-400 hover:bg-gray-100")}
+                                    title={(p.是否置頂 === true) ? "取消置頂" : "設為置頂"}
                                   >
-                                    <Pin size={16} fill={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "currentColor" : "none"} />
-                                    {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <span className="text-[10px] font-bold">置頂</span>}
+                                    <Pin size={16} fill={(p.是否置頂 === true) ? "currentColor" : "none"} />
+                                    {(p.是否置頂 === true) && <span className="text-[10px] font-bold">置頂</span>}
                                   </button>
                                   <button onClick={() => { setEditItem(p); setModalType('product'); }} className="p-2 transition-colors hover:bg-gray-100 rounded-xl text-blue-500">
                                     <Edit3 size={16} />
@@ -3007,8 +3279,8 @@ export default function App() {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1">
                                   <span className="text-xs font-bold text-brand-500 tracking-wider">#{p.商品代號}</span>
-                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <Pin size={10} className="text-brand-500 fill-brand-500" />}
-                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <span className="text-[8px] font-bold text-brand-500">置頂</span>}
+                                  {(p.是否置頂 === true) && <Pin size={10} className="text-brand-500 fill-brand-500" />}
+                                  {(p.是否置頂 === true) && <span className="text-[8px] font-bold text-brand-500">置頂</span>}
                                 </div>
                                 <p className="font-bold text-gray-900 truncate">{p.商品名稱}</p>
                                 <p className="text-[10px] text-gray-400 font-bold">{cat?.分類名稱}</p>
@@ -3017,9 +3289,9 @@ export default function App() {
                             <div className="flex gap-1">
                               <button 
                                 onClick={() => togglePinProduct(p.id, p.是否置頂)} 
-                                className={cn("p-2 rounded-xl transition-colors", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-brand-500 bg-brand-100" : "text-gray-400 bg-gray-50")}
+                                className={cn("p-2 rounded-xl transition-colors", (p.是否置頂 === true) ? "text-brand-500 bg-brand-100" : "text-gray-400 bg-gray-50")}
                               >
-                                <Pin size={16} fill={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "currentColor" : "none"} />
+                                <Pin size={16} fill={(p.是否置頂 === true) ? "currentColor" : "none"} />
                               </button>
                               <button onClick={() => { setEditItem(p); setModalType('product'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
                                 <Edit3 size={16} />
