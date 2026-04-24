@@ -176,15 +176,15 @@ const AuthScreen = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-orange-50/50 via-transparent to-transparent">
+    <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center p-6 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-50/50 via-transparent to-transparent">
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-md w-full"
       >
         <div className="text-center mb-10">
-          <div className="inline-flex p-4 rounded-3xl bg-[#111827] shadow-xl shadow-orange-500/10 mb-6 ring-8 ring-white">
-            <Zap className="text-orange-500" size={32} fill="currentColor" />
+          <div className="inline-flex p-4 rounded-3xl bg-[#111827] shadow-xl shadow-brand-500/10 mb-6 ring-8 ring-white">
+            <Zap className="text-brand-500" size={32} fill="currentColor" />
           </div>
           <h1 className="text-3xl font-black text-gray-900 tracking-tight mb-2">代購管家</h1>
           <p className="text-gray-500 font-medium tracking-wide">個人商務數據管理中心</p>
@@ -192,7 +192,7 @@ const AuthScreen = () => {
 
         <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-gray-200/50 border border-gray-100">
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-1.5 h-6 bg-orange-500 rounded-full" />
+            <div className="w-1.5 h-6 bg-brand-500 rounded-full" />
             <h2 className="text-xl font-bold text-gray-900">管理員登入</h2>
           </div>
           
@@ -217,7 +217,7 @@ const AuthScreen = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@logic.com"
-                  className="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-orange-500/30 focus:bg-white transition-all outline-none"
+                  className="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-brand-500/30 focus:bg-white transition-all outline-none"
                   required
                 />
               </div>
@@ -232,7 +232,7 @@ const AuthScreen = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-orange-500/30 focus:bg-white transition-all outline-none"
+                  className="w-full bg-gray-50 border-2 border-gray-50 rounded-2xl pl-12 pr-4 py-4 text-sm focus:border-brand-500/30 focus:bg-white transition-all outline-none"
                   required
                 />
               </div>
@@ -257,9 +257,9 @@ const AuthScreen = () => {
           </form>
         </div>
 
-        <div className="mt-10 bg-orange-50/50 border border-orange-100 rounded-2xl p-4 flex gap-3">
-          <AlertCircle size={18} className="text-orange-500 shrink-0" />
-          <p className="text-[11px] text-orange-800 font-medium leading-relaxed">
+        <div className="mt-10 bg-brand-50/50 border border-brand-100 rounded-2xl p-4 flex gap-3">
+          <AlertCircle size={18} className="text-brand-500 shrink-0" />
+          <p className="text-[11px] text-brand-800 font-medium leading-relaxed">
             安全提醒：本系統不開放公開註冊。新管理員帳號須由現有系統負責人於背景管理端手動授權。若有任何存取疑問，請聯繫系統架構師。
           </p>
         </div>
@@ -348,14 +348,14 @@ const ProductSearchSelect = ({
   defaultValue, 
   required,
   placeholder = "搜尋商品...",
-  colorTheme = "blue"
+  colorTheme = "brand"
 }: { 
   prods: Product[], 
   name: string, 
   defaultValue?: string, 
   required?: boolean,
   placeholder?: string,
-  colorTheme?: 'blue' | 'orange'
+  colorTheme?: 'blue' | 'brand'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -368,10 +368,10 @@ const ProductSearchSelect = ({
     p.商品代號.toLowerCase().includes(search.toLowerCase())
   );
 
-  const ringClass = colorTheme === 'blue' ? "focus:ring-blue-500/20" : "focus:ring-orange-500/20";
-  const hoverClass = colorTheme === 'blue' ? "hover:bg-blue-50" : "hover:bg-orange-50";
-  const selectedBgClass = colorTheme === 'blue' ? "bg-blue-50/50" : "bg-orange-50/50";
-  const textClass = colorTheme === 'blue' ? "text-blue-600" : "text-orange-600";
+  const ringClass = colorTheme === 'blue' ? "focus:ring-blue-500/20" : "focus:ring-brand-500/20";
+  const hoverClass = colorTheme === 'blue' ? "hover:bg-blue-50" : "hover:bg-brand-50";
+  const selectedBgClass = colorTheme === 'blue' ? "bg-blue-50/50" : "bg-brand-50/50";
+  const textClass = colorTheme === 'blue' ? "text-blue-600" : "text-brand-600";
 
   return (
     <div className="relative">
@@ -498,7 +498,7 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
             opacity: [0.3, 0.6, 0.3]
           }}
           transition={{ repeat: Infinity, duration: 2 }}
-          className="absolute inset-0 bg-orange-500/20 blur-[100px] rounded-full"
+          className="absolute inset-0 bg-brand-500/20 blur-[100px] rounded-full"
         />
 
         <motion.div
@@ -510,7 +510,7 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
             damping: 20,
             delay: 0.1
           }}
-          className="relative z-10 w-24 h-24 bg-gradient-to-br from-orange-400 to-red-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-orange-500/40"
+          className="relative z-10 w-24 h-24 bg-gradient-to-br from-brand-400 to-red-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-brand-500/40"
         >
           <Zap size={48} className="text-white" fill="white" />
         </motion.div>
@@ -524,7 +524,7 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
           className="overflow-hidden"
         >
           <h1 className="text-4xl md:text-5xl font-black text-white tracking-tighter">
-            代購<span className="text-orange-500">管家</span>
+            代購<span className="text-brand-500">管家</span>
           </h1>
         </motion.div>
         
@@ -542,7 +542,7 @@ const SplashScreen = ({ onComplete }: { onComplete: () => void }) => {
         initial={{ width: 0 }}
         animate={{ width: 240 }}
         transition={{ delay: 0.8, duration: 1.0, ease: "circIn" }}
-        className="mt-12 h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent opacity-50 rounded-full"
+        className="mt-12 h-1 bg-gradient-to-r from-transparent via-brand-500 to-transparent opacity-50 rounded-full"
       />
     </motion.div>
   );
@@ -574,8 +574,8 @@ const ImportProgressOverlay = ({ progress }: { progress: number }) => (
           />
           <defs>
             <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#F97316" />
-              <stop offset="100%" stopColor="#EA580C" />
+              <stop offset="0%" stopColor="var(--brand-hex)" />
+              <stop offset="100%" stopColor="var(--brand-hex)" />
             </linearGradient>
           </defs>
         </svg>
@@ -592,7 +592,7 @@ const ImportProgressOverlay = ({ progress }: { progress: number }) => (
       </div>
 
       <div className="w-full bg-gray-50 rounded-2xl p-4 flex items-center gap-3">
-        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+        <div className="w-2 h-2 bg-brand-500 rounded-full animate-pulse" />
         <span className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
           {progress < 30 ? '校驗數據格式' : progress < 80 ? '處理商品關聯' : '寫入資料庫並同步'}
         </span>
@@ -603,6 +603,9 @@ const ImportProgressOverlay = ({ progress }: { progress: number }) => (
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [theme, setTheme] = useState<'orange' | 'pink' | 'blue' | 'emerald' | 'violet'>(
+    (localStorage.getItem('app-theme') as any) || 'orange'
+  );
   const [cats, setCats] = useState<Category[]>([]);
   const [prods, setProds] = useState<Product[]>([]);
   const [purch, setPurch] = useState<Purchase[]>([]);
@@ -690,9 +693,25 @@ export default function App() {
   const [salesSortDir, setSalesSortDir] = useState<'asc' | 'desc'>('desc');
 
   // Purchase Modal Form Assistant (Auto-calc)
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('app-theme', theme);
+  }, [theme]);
+
   const [purQty, setPurQty] = useState<string | number>('');
   const [purUnitCost, setPurUnitCost] = useState<string | number>('');
   const [purTotal, setPurTotal] = useState<string | number>('');
+
+  const themeConfig = {
+    orange: { hex: '#f97316', b400: '#fb923c' },
+    pink: { hex: '#ec4899', b400: '#f472b6' },
+    blue: { hex: '#3b82f6', b400: '#60a5fa' },
+    emerald: { hex: '#10b981', b400: '#34d399' },
+    violet: { hex: '#8b5cf6', b400: '#a78bfa' }
+  };
+
+  const brandHex = themeConfig[theme].hex;
+  const brand400 = themeConfig[theme].b400;
 
   useEffect(() => {
     if (modalType === 'purchase') {
@@ -708,6 +727,63 @@ export default function App() {
     }
   }, [modalType, editItem]);
   
+  useEffect(() => {
+    localStorage.setItem('app-theme', theme);
+    
+    // 動態更新瀏覽器與 PWA 主題顏色 (影響 iPhone 狀態列)
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', brandHex);
+    }
+
+    // 動態生成帶有主題背景的 Apple Touch Icon (影響加入主畫面的圖示)
+    const canvas = document.createElement('canvas');
+    canvas.width = 180;
+    canvas.height = 180;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      // 繪製背景 (帶有圓角以適應不同平台，雖然 iOS 會自動切圓角，但這樣預覽更精確)
+      ctx.fillStyle = brandHex;
+      ctx.fillRect(0, 0, 180, 180);
+
+      // 繪製中心閃電圖示 (Zap)
+      ctx.fillStyle = '#ffffff';
+      ctx.shadowColor = 'rgba(0,0,0,0.1)';
+      ctx.shadowBlur = 10;
+      
+      // 繪製 Zap 圖示的路徑 (大致比例)
+      ctx.beginPath();
+      ctx.moveTo(105, 30);  // 頂點
+      ctx.lineTo(55, 100);  // 左折點 
+      ctx.lineTo(90, 100);  // 中間收縮
+      ctx.lineTo(75, 155);  // 底點
+      ctx.lineTo(125, 85);  // 右折點
+      ctx.lineTo(90, 85);   // 中間收縮
+      ctx.lineTo(105, 30);  // 回到頂點
+      ctx.closePath();
+      ctx.fill();
+
+      const iconUrl = canvas.toDataURL('image/png');
+      
+      // 更新 apple-touch-icon
+      let appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+      if (appleIcon) {
+        appleIcon.setAttribute('href', iconUrl);
+      } else {
+        appleIcon = document.createElement('link');
+        appleIcon.setAttribute('rel', 'apple-touch-icon');
+        appleIcon.setAttribute('href', iconUrl);
+        document.head.appendChild(appleIcon);
+      }
+
+      // 同時更新一般 favicon 保持主題感
+      let favicon = document.querySelector('link[rel="icon"]');
+      if (favicon) {
+        favicon.setAttribute('href', iconUrl);
+      }
+    }
+  }, [theme, brandHex]);
+
   // --- Data Fetching Utils ---
   const fetchAll = async (tableName: string, orderCol: string, ascending = false, secondaryOrder?: { col: string, asc: boolean }) => {
     let allData: any[] = [];
@@ -2142,7 +2218,7 @@ export default function App() {
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-          className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full"
+          className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full"
         />
         <p className="text-gray-500 font-medium animate-pulse">{checkingSession ? "驗證權限中..." : "系統加載中..."}</p>
       </div>
@@ -2164,16 +2240,16 @@ export default function App() {
 
   const SortIcon = ({ sKey }: { sKey: string }) => {
     if (invSortKey !== sKey) return <ArrowUpDown size={12} className="ml-1 opacity-40" />;
-    return invSortDir === 'asc' ? <ArrowUpDown size={12} className="ml-1 text-orange-500" /> : <ArrowUpDown size={12} className="ml-1 text-orange-500 rotate-180" />;
+    return invSortDir === 'asc' ? <ArrowUpDown size={12} className="ml-1 text-brand-500" /> : <ArrowUpDown size={12} className="ml-1 text-brand-500 rotate-180" />;
   };
 
   const SortIconGeneric = ({ dir, active }: { dir: 'asc' | 'desc', active: boolean }) => {
     if (!active) return <ArrowUpDown size={12} className="ml-1 opacity-40" />;
-    return dir === 'asc' ? <ArrowUpDown size={12} className="ml-1 text-orange-500" /> : <ArrowUpDown size={12} className="ml-1 text-orange-500 rotate-180" />;
+    return dir === 'asc' ? <ArrowUpDown size={12} className="ml-1 text-brand-500" /> : <ArrowUpDown size={12} className="ml-1 text-brand-500 rotate-180" />;
   };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col lg:flex-row font-sans text-gray-900 overflow-x-hidden">
+    <div className="min-h-screen bg-[#F8F9FA] flex flex-col lg:flex-row font-sans text-gray-900 overflow-x-hidden" data-theme={theme}>
       {/* --- Import Progress Overlay --- */}
       {isImporting && <ImportProgressOverlay progress={importProgress} />}
 
@@ -2186,11 +2262,11 @@ export default function App() {
         <div className="p-4 xl:p-8 flex items-center justify-center xl:justify-start gap-3">
           <motion.div 
             whileHover={{ scale: 1.1, rotate: 5 }}
-            className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20"
+            className="w-10 h-10 bg-gradient-to-br from-brand-400 to-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand-500/20"
           >
             <Zap className="text-white" size={24} fill="white" />
           </motion.div>
-          <span className="hidden xl:block text-xl font-bold tracking-tight">代購<span className="text-orange-500">管家</span></span>
+          <span className="hidden xl:block text-xl font-bold tracking-tight">代購<span className="text-brand-500">管家</span></span>
         </div>
 
         <nav className="flex-1 mt-8 space-y-2 px-3">
@@ -2205,12 +2281,12 @@ export default function App() {
                   : "text-gray-400 hover:text-white hover:bg-white/5"
               )}
             >
-              <item.icon size={22} className={cn(activeTab === item.id ? "text-orange-500" : "group-hover:text-orange-400")} />
+              <item.icon size={22} className={cn(activeTab === item.id ? "text-brand-500" : "group-hover:text-brand-400")} />
               <span className="hidden xl:block whitespace-nowrap">{item.label}</span>
               {activeTab === item.id && (
                 <motion.div 
                   layoutId="active-nav"
-                  className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-orange-500 rounded-l-full shadow-[0_0_15px_rgba(249,115,22,0.5)]"
+                  className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-8 bg-brand-500 rounded-l-full shadow-[0_0_15px_rgba(var(--brand-rgb),0.5)]"
                 />
               )}
             </button>
@@ -2218,6 +2294,26 @@ export default function App() {
         </nav>
 
         <div className="p-6 space-y-4">
+          <div className="hidden xl:flex flex-wrap items-center gap-2 px-2 pb-2 border-b border-white/5">
+            {[
+              { id: 'orange', color: '#f97316', name: '橘色' },
+              { id: 'pink', color: '#ec4899', name: '粉色' },
+              { id: 'blue', color: '#3b82f6', name: '藍色' },
+              { id: 'emerald', color: '#10b981', name: '翠綠' },
+              { id: 'violet', color: '#8b5cf6', name: '紫羅蘭' },
+            ].map((t) => (
+              <button 
+                key={t.id}
+                onClick={() => setTheme(t.id as any)}
+                className={cn(
+                  "w-5 h-5 rounded-full ring-offset-2 ring-offset-[#111827] transition-all", 
+                  theme === t.id ? "ring-2 ring-white scale-110" : "hover:scale-110 opacity-50"
+                )}
+                style={{ backgroundColor: t.color }}
+                title={`${t.name}主題`}
+              />
+            ))}
+          </div>
           <div className="hidden xl:block bg-white/5 rounded-2xl p-4 border border-white/10">
             <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-1">Version 2.0</p>
             <p className="text-xs text-gray-300">雲端同步已開啟</p>
@@ -2240,14 +2336,14 @@ export default function App() {
             onClick={() => setActiveTab(item.id)}
             className={cn(
               "p-3 rounded-2xl transition-all relative flex flex-col items-center gap-1",
-              activeTab === item.id ? "text-orange-500" : "text-gray-500"
+              activeTab === item.id ? "text-brand-500" : "text-gray-500"
             )}
           >
-            <item.icon size={20} className={activeTab === item.id ? "fill-orange-500/20" : ""} />
+            <item.icon size={20} className={activeTab === item.id ? "fill-brand-500/20" : ""} />
             {activeTab === item.id && (
               <motion.div 
                 layoutId="active-nav-mobile"
-                className="absolute -top-1 w-1 h-1 bg-orange-500 rounded-full"
+                className="absolute -top-1 w-1 h-1 bg-brand-500 rounded-full"
               />
             )}
             <span className="text-[10px] font-bold tracking-tight">{item.label.slice(0, 2)}</span>
@@ -2276,8 +2372,8 @@ export default function App() {
           
           <div className="flex items-center gap-4">
             <div className="bg-white px-4 py-2.5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center">
-                <LayoutDashboard size={14} className="text-orange-600" />
+              <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
+                <LayoutDashboard size={14} className="text-brand-600" />
               </div>
               <span className="text-sm font-medium text-gray-700">Administrator</span>
             </div>
@@ -2300,13 +2396,13 @@ export default function App() {
                     <div className="flex bg-gray-100 p-1 rounded-2xl w-full xs:w-auto">
                       <button 
                         onClick={() => setDashViewType('month')}
-                        className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'month' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'month' ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
                       >
                         月統計
                       </button>
                       <button 
                         onClick={() => setDashViewType('year')}
-                        className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'year' ? "bg-white text-orange-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
+                        className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'year' ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
                       >
                         年統計
                       </button>
@@ -2319,7 +2415,7 @@ export default function App() {
                       <div className="flex items-center gap-1">
                         <button 
                           onClick={() => shiftDashboardDate(-1)}
-                          className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
+                          className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-brand-500 transition-colors"
                           title={dashViewType === 'month' ? "上一個月" : "下一年"}
                         >
                           <ChevronLeft size={16} />
@@ -2330,7 +2426,7 @@ export default function App() {
                             type="month" 
                             value={dashMonth}
                             onChange={(e) => setDashMonth(e.target.value)}
-                            className="bg-gray-50 border-none rounded-xl px-2 py-1.5 font-bold text-gray-800 focus:ring-2 focus:ring-orange-500/20 text-center text-sm w-32"
+                            className="bg-gray-50 border-none rounded-xl px-2 py-1.5 font-bold text-gray-800 focus:ring-2 focus:ring-brand-500/20 text-center text-sm w-32"
                           />
                         ) : (
                           <div className="flex items-center gap-1">
@@ -2340,7 +2436,7 @@ export default function App() {
                               max="2100"
                               value={dashMonth.slice(0, 4)}
                               onChange={(e) => setDashMonth(`${e.target.value}-${dashMonth.slice(5, 7)}`)}
-                              className="bg-gray-50 border-none rounded-xl px-2 py-1.5 font-bold text-gray-800 focus:ring-2 focus:ring-orange-500/20 w-20 text-center text-sm"
+                              className="bg-gray-50 border-none rounded-xl px-2 py-1.5 font-bold text-gray-800 focus:ring-2 focus:ring-brand-500/20 w-20 text-center text-sm"
                             />
                             <span className="text-[10px] font-bold text-gray-400">年</span>
                           </div>
@@ -2348,7 +2444,7 @@ export default function App() {
                         
                         <button 
                           onClick={() => shiftDashboardDate(1)}
-                          className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-orange-500 transition-colors"
+                          className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-brand-500 transition-colors"
                           title={dashViewType === 'month' ? "下一個月" : "下一年"}
                         >
                           <ChevronRight size={16} />
@@ -2372,7 +2468,7 @@ export default function App() {
                     value={formatCurrency(dashData.cost)} 
                     sub="庫存補充支出" 
                     icon={ShoppingCart} 
-                    colorClass="bg-orange-500 shadow-orange-500/30 shadow-lg" 
+                    colorClass="bg-brand-500 shadow-brand-500/30 shadow-lg" 
                     delay={0.2}
                   />
                   <KPICard 
@@ -2402,13 +2498,13 @@ export default function App() {
                         <div className="flex bg-gray-100/80 p-1 rounded-xl shadow-inner border border-gray-100">
                           <button 
                             onClick={() => setDashChartMetric('rev_pur')}
-                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartMetric === 'rev_pur' ? "bg-white text-orange-600 shadow-md ring-1 ring-orange-500/5" : "text-gray-400 hover:text-gray-600")}
+                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartMetric === 'rev_pur' ? "bg-white text-brand-600 shadow-md ring-1 ring-brand-500/5" : "text-gray-400 hover:text-gray-600")}
                           >
                             收支
                           </button>
                           <button 
                             onClick={() => setDashChartMetric('net')}
-                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartMetric === 'net' ? "bg-white text-orange-600 shadow-md ring-1 ring-orange-500/5" : "text-gray-400 hover:text-gray-600")}
+                            className={cn("px-4 py-1.5 rounded-lg text-xs font-bold transition-all", dashChartMetric === 'net' ? "bg-white text-brand-600 shadow-md ring-1 ring-brand-500/5" : "text-gray-400 hover:text-gray-600")}
                           >
                             淨利
                           </button>
@@ -2460,7 +2556,7 @@ export default function App() {
                               cursor={{ fill: '#F9FAFB' }}
                             />
                             {dashChartMetric === 'rev_pur' && <Bar dataKey="revenue" name="營業額" fill="#185FA5" radius={[6, 6, 0, 0]} barSize={20} />}
-                            {dashChartMetric === 'rev_pur' && <Bar dataKey="purchase" name="採購額" fill="#F97316" radius={[6, 6, 0, 0]} barSize={20} />}
+                            {dashChartMetric === 'rev_pur' && <Bar dataKey="purchase" name="採購額" fill={brandHex} radius={[6, 6, 0, 0]} barSize={20} />}
                             {dashChartMetric === 'net' && <Bar dataKey="net" name="總淨利" fill="#10B981" radius={[6, 6, 0, 0]} barSize={32} />}
                             <Legend verticalAlign="top" align="right" height={36} iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
                           </BarChart>
@@ -2491,7 +2587,7 @@ export default function App() {
                               }}
                             />
                             {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="revenue" name="營業額" stroke="#185FA5" strokeWidth={4} dot={{ r: 4, fill: '#185FA5', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
-                            {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="purchase" name="採購額" stroke="#F97316" strokeWidth={4} dot={{ r: 4, fill: '#F97316', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
+                            {dashChartMetric === 'rev_pur' && <Line type="monotone" dataKey="purchase" name="採購額" stroke={brandHex} strokeWidth={4} dot={{ r: 4, fill: brandHex, strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
                             {dashChartMetric === 'net' && <Line type="monotone" dataKey="net" name="總淨利" stroke="#10B981" strokeWidth={4} dot={{ r: 4, fill: '#10B981', strokeWidth: 0 }} activeDot={{ r: 6, stroke: '#fff', strokeWidth: 2 }} />}
                             <Legend verticalAlign="top" align="right" height={36} iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '12px' }} />
                           </LineChart>
@@ -2537,13 +2633,13 @@ export default function App() {
                       </div>
                     </Card>
 
-                    <Card title={`熱賣 TOP 5 (${dashViewType === 'year' ? '年度' : '月度'})`} className="bg-gradient-to-br from-orange-50 to-white">
+                    <Card title={`熱賣 TOP 5 (${dashViewType === 'year' ? '年度' : '月度'})`} className="bg-gradient-to-br from-brand-50 to-white">
                       <div className="space-y-4">
                         {dashData.topProducts.length > 0 ? dashData.topProducts.map((p, idx) => (
                           <div key={p.id} className="flex items-center gap-3">
                             <div className={cn(
                               "w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-bold",
-                              idx === 0 ? "bg-orange-500 text-white" : "bg-gray-100 text-gray-500"
+                              idx === 0 ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-500"
                             )}>
                               {idx + 1}
                             </div>
@@ -2552,7 +2648,7 @@ export default function App() {
                               <p className="text-[10px] text-gray-400 font-medium">代號: {p.code}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-xs font-bold text-orange-600">{p.qty} 件</p>
+                              <p className="text-xs font-bold text-brand-600">{p.qty} 件</p>
                               <p className="text-[10px] text-gray-400">{formatCurrency(p.rev)}</p>
                             </div>
                           </div>
@@ -2582,7 +2678,7 @@ export default function App() {
                             <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
                               <td className="px-6 py-4 text-sm text-gray-500 font-medium">{item.銷貨日期}</td>
                               <td className="px-6 py-4">
-                                <span className="text-sm font-bold text-orange-600 block">{prod?.商品代號}</span>
+                                <span className="text-sm font-bold text-brand-600 block">{prod?.商品代號}</span>
                                 <span className="text-sm text-gray-700">{prod?.商品名稱}</span>
                               </td>
                               <td className="px-6 py-4 text-right">
@@ -2628,7 +2724,7 @@ export default function App() {
                             </span>
                           </div>
                           <div className="flex justify-between items-end">
-                             <span className="text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">#{prod?.商品代號}</span>
+                             <span className="text-[10px] font-bold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded">#{prod?.商品代號}</span>
                              <span className="text-sm font-black text-gray-900">{formatCurrency(item.銷售金額)}</span>
                           </div>
                         </div>
@@ -2648,7 +2744,7 @@ export default function App() {
                   <h2 className="text-xl font-bold text-gray-800">所有產品類別</h2>
                   <button 
                     onClick={() => { setModalType('category'); setEditItem(null); }} 
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-orange-500/20 flex items-center gap-2"
+                    className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-3 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-brand-500/20 flex items-center gap-2"
                   >
                     <Plus size={18} /> 新增分類
                   </button>
@@ -2664,7 +2760,7 @@ export default function App() {
                       className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow group relative"
                     >
                       <div className="flex justify-between items-start mb-4">
-                        <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-bold text-orange-500 text-xl tracking-wider">
+                        <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center font-bold text-brand-500 text-xl tracking-wider">
                           {cat.分類代號}
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2698,12 +2794,12 @@ export default function App() {
                         placeholder="搜尋品類、代號或商品名稱..." 
                         value={invSearch}
                         onChange={(e) => setInvSearch(e.target.value)}
-                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
+                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand-500/20"
                       />
                     </div>
                     <button 
                       onClick={() => setInvSearchApplied(invSearch)}
-                      className="w-full lg:w-auto bg-orange-100 text-orange-600 px-8 py-3 rounded-2xl font-bold text-sm hover:bg-orange-200 transition-colors flex items-center justify-center gap-2"
+                      className="w-full lg:w-auto bg-brand-100 text-brand-600 px-8 py-3 rounded-2xl font-bold text-sm hover:bg-brand-200 transition-colors flex items-center justify-center gap-2"
                     >
                       <Search size={16} /> 查詢
                     </button>
@@ -2745,7 +2841,7 @@ export default function App() {
                         type="checkbox" 
                         checked={hideDiscontinued}
                         onChange={(e) => setHideDiscontinued(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500/20"
+                        className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500/20"
                       />
                       <span className="text-xs font-bold text-gray-600">隱藏停售商品</span>
                     </label>
@@ -2765,13 +2861,13 @@ export default function App() {
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-brand-500 transition-colors"
                             onClick={() => toggleInvSort('code')}
                           >
                             <div className="flex items-center">商品資訊 <SortIcon sKey="code" /></div>
                           </th>
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-brand-500 transition-colors"
                             onClick={() => toggleInvSort('cost')}
                           >
                             <div className="flex items-center">平均成本 <SortIcon sKey="cost" /></div>
@@ -2780,7 +2876,7 @@ export default function App() {
                             累計買入 / 賣出
                           </th>
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-brand-500 transition-colors"
                             onClick={() => toggleInvSort('stock')}
                           >
                             <div className="flex items-center">庫存數 <SortIcon sKey="stock" /></div>
@@ -2789,7 +2885,7 @@ export default function App() {
                             平均獲利
                           </th>
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-brand-500 transition-colors"
                             onClick={() => toggleInvSort('status')}
                           >
                             <div className="flex items-center">狀態 <SortIcon sKey="status" /></div>
@@ -2804,11 +2900,11 @@ export default function App() {
                             <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-6 py-5">
                                 <div className="flex items-center gap-4">
-                                  <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 font-bold text-xs">
+                                  <div className="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center text-brand-600 font-bold text-xs">
                                     {cat?.分類代號}
                                   </div>
                                   <div>
-                                    <span className="text-xs font-bold text-orange-500 tracking-wider">#{p.商品代號}</span>
+                                    <span className="text-xs font-bold text-brand-500 tracking-wider">#{p.商品代號}</span>
                                     <p className="font-semibold text-gray-900">{p.商品名稱}</p>
                                     <span className="text-[10px] text-gray-400 font-bold uppercase">{cat?.分類名稱}</span>
                                   </div>
@@ -2853,7 +2949,7 @@ export default function App() {
                                 <div className="flex justify-end gap-2">
                                   <button 
                                     onClick={() => togglePinProduct(p.id, p.是否置頂)} 
-                                    className={cn("p-2 transition-colors rounded-xl flex items-center gap-1", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-orange-500 bg-orange-50" : "text-gray-400 hover:bg-gray-100")}
+                                    className={cn("p-2 transition-colors rounded-xl flex items-center gap-1", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-brand-500 bg-brand-50" : "text-gray-400 hover:bg-gray-100")}
                                     title={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "取消置頂" : "設為置頂"}
                                   >
                                     <Pin size={16} fill={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "currentColor" : "none"} />
@@ -2882,14 +2978,14 @@ export default function App() {
                         <div key={p.id} className="py-4 space-y-3">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center text-orange-600 font-bold text-xs shrink-0">
+                              <div className="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center text-brand-600 font-bold text-xs shrink-0">
                                 {cat?.分類代號}
                               </div>
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1">
-                                  <span className="text-xs font-bold text-orange-500 tracking-wider">#{p.商品代號}</span>
-                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <Pin size={10} className="text-orange-500 fill-orange-500" />}
-                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <span className="text-[8px] font-bold text-orange-500">置頂</span>}
+                                  <span className="text-xs font-bold text-brand-500 tracking-wider">#{p.商品代號}</span>
+                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <Pin size={10} className="text-brand-500 fill-brand-500" />}
+                                  {(p.是否置頂 === 'Y' || p.是否置頂 === true) && <span className="text-[8px] font-bold text-brand-500">置頂</span>}
                                 </div>
                                 <p className="font-bold text-gray-900 truncate">{p.商品名稱}</p>
                                 <p className="text-[10px] text-gray-400 font-bold">{cat?.分類名稱}</p>
@@ -2898,7 +2994,7 @@ export default function App() {
                             <div className="flex gap-1">
                               <button 
                                 onClick={() => togglePinProduct(p.id, p.是否置頂)} 
-                                className={cn("p-2 rounded-xl transition-colors", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-orange-500 bg-orange-100" : "text-gray-400 bg-gray-50")}
+                                className={cn("p-2 rounded-xl transition-colors", (p.是否置頂 === 'Y' || p.是否置頂 === true) ? "text-brand-500 bg-brand-100" : "text-gray-400 bg-gray-50")}
                               >
                                 <Pin size={16} fill={(p.是否置頂 === 'Y' || p.是否置頂 === true) ? "currentColor" : "none"} />
                               </button>
@@ -2955,21 +3051,21 @@ export default function App() {
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
-                      <div className="flex items-center bg-gray-50 rounded-2xl px-4 py-2 border-none w-full sm:w-auto">
-                        <input 
-                          type="date"
-                          value={financeStartDate}
-                          onChange={(e) => setFinanceStartDate(e.target.value)}
-                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
-                        />
-                        <span className="text-gray-300 mx-2 text-xs">至</span>
-                        <input 
-                          type="date"
-                          value={financeEndDate}
-                          onChange={(e) => setFinanceEndDate(e.target.value)}
-                          className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
-                        />
-                      </div>
+          <div className="flex bg-gray-50 rounded-2xl px-4 py-2 border-none w-full sm:w-auto">
+            <input 
+              type="date"
+              value={financeStartDate}
+              onChange={(e) => setFinanceStartDate(e.target.value)}
+              className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
+            />
+            <span className="text-gray-300 mx-2 text-xs">至</span>
+            <input 
+              type="date"
+              value={financeEndDate}
+              onChange={(e) => setFinanceEndDate(e.target.value)}
+              className="bg-transparent border-none p-1 text-sm focus:ring-0 text-gray-500 w-full sm:w-32"
+            />
+          </div>
                       <button 
                         onClick={() => {
                           setFinanceSearchApplied(financeSearch);
@@ -3132,7 +3228,7 @@ export default function App() {
                         placeholder="搜尋商品名稱、代號或來源..." 
                         value={purchaseSearch}
                         onChange={(e) => setPurchaseSearch(e.target.value)}
-                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand-500/20"
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -3211,7 +3307,7 @@ export default function App() {
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-brand-500 transition-colors"
                             onClick={() => setPurchaseSortDir(purchaseSortDir === 'asc' ? 'desc' : 'asc')}
                           >
                             <div className="flex items-center">日期 <SortIconGeneric dir={purchaseSortDir} active={true} /></div>
@@ -3230,7 +3326,7 @@ export default function App() {
                             <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-6 py-5 text-sm text-gray-500 font-medium">{p.進貨日期}</td>
                               <td className="px-6 py-5">
-                                <span className="text-xs font-bold text-orange-500 tracking-wider">#{prod?.商品代號}</span>
+                                <span className="text-xs font-bold text-brand-500 tracking-wider">#{prod?.商品代號}</span>
                                 <p className="font-bold text-gray-900">{prod?.商品名稱}</p>
                               </td>
                               <td className="px-6 py-5">
@@ -3283,7 +3379,7 @@ export default function App() {
                                   {p.訂單狀態 || '待入庫'}
                                 </span>
                               <h4 className="font-bold text-gray-900">{prod?.商品名稱}</h4>
-                              <p className="text-[10px] text-orange-500 font-bold">#{prod?.商品代號}</p>
+                              <p className="text-[10px] text-brand-500 font-bold">#{prod?.商品代號}</p>
                             </div>
                             <div className="flex gap-1">
                               <button onClick={() => { setEditItem(p); setModalType('purchase'); }} className="p-2 text-blue-500 bg-blue-50 rounded-xl">
@@ -3338,7 +3434,7 @@ export default function App() {
                         placeholder="搜尋單號、商品名稱、代號或平台..." 
                         value={salesSearch}
                         onChange={(e) => setSalesSearch(e.target.value)}
-                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-orange-500/20"
+                        className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand-500/20"
                       />
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-3">
@@ -3417,7 +3513,7 @@ export default function App() {
                       <thead>
                         <tr className="border-b border-gray-100">
                           <th 
-                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-orange-500 transition-colors"
+                            className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest cursor-pointer hover:text-brand-500 transition-colors"
                             onClick={() => setSalesSortDir(salesSortDir === 'asc' ? 'desc' : 'asc')}
                           >
                             <div className="flex items-center">訂單資訊 <SortIconGeneric dir={salesSortDir} active={true} /></div>
@@ -3443,7 +3539,7 @@ export default function App() {
                               </td>
                               <td className="px-6 py-5">
                                 <p className="font-bold text-gray-900 truncate max-w-[200px]">{prod?.商品名稱}</p>
-                                <p className="text-xs text-gray-500">數量: <span className="font-bold text-orange-600">{s.數量}</span></p>
+                                <p className="text-xs text-gray-500">數量: <span className="font-bold text-brand-600">{s.數量}</span></p>
                               </td>
                               <td className="px-6 py-5">
                                 <span className="font-black text-lg text-gray-900">{formatCurrency(s.銷售金額)}</span>
@@ -3517,7 +3613,7 @@ export default function App() {
                               <div className="min-w-0 pr-2">
                                 <p className="text-[10px] text-gray-400 font-bold mb-0.5">商品明細</p>
                                 <p className="text-sm font-bold text-gray-900 truncate">{prod?.商品名稱}</p>
-                                <p className="text-[10px] text-orange-500 font-bold">#{prod?.商品代號}</p>
+                                <p className="text-[10px] text-brand-500 font-bold">#{prod?.商品代號}</p>
                               </div>
                               <div className="text-right shrink-0">
                                 <p className="text-[10px] text-gray-400 font-bold mb-0.5">數量</p>
@@ -3599,7 +3695,7 @@ export default function App() {
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">總銷貨數量</p>
-                  <p className="font-bold text-orange-600 text-lg">{viewingSaleBatches.數量}</p>
+                  <p className="font-bold text-brand-600 text-lg">{viewingSaleBatches.數量}</p>
                 </div>
               </div>
 
@@ -3698,7 +3794,7 @@ export default function App() {
                   name="name" 
                   defaultValue={editItem?.分類名稱} 
                   required 
-                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20" 
+                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" 
                   placeholder="例如：韓妝系列"
                 />
               </div>
@@ -3706,7 +3802,7 @@ export default function App() {
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">英文代碼 (1-3碼)</label>
                   {editItem && (
-                    <span className="text-[10px] text-orange-500 font-bold bg-orange-50 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                    <span className="text-[10px] text-brand-500 font-bold bg-brand-50 px-2 py-0.5 rounded-lg flex items-center gap-1">
                       <AlertCircle size={10} /> 禁止修改
                     </span>
                   )}
@@ -3718,7 +3814,7 @@ export default function App() {
                   disabled={!!editItem}
                   maxLength={3}
                   className={cn(
-                    "w-full border-none rounded-2xl p-4 text-sm font-bold uppercase focus:ring-2 focus:ring-orange-500/20",
+                    "w-full border-none rounded-2xl p-4 text-sm font-bold uppercase focus:ring-2 focus:ring-brand-500/20",
                     editItem ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 text-gray-800"
                   )}
                   placeholder="例如：SK"
@@ -3734,7 +3830,7 @@ export default function App() {
                 disabled={isSubmitting}
                 className={cn(
                   "w-full text-white font-bold py-4 rounded-2xl shadow-lg transition-all",
-                  isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-orange-500 hover:bg-orange-600"
+                  isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-brand-500 hover:bg-brand-600"
                 )}
               >
                 {isSubmitting ? "儲存中..." : "確認儲存"}
@@ -3754,7 +3850,7 @@ export default function App() {
                   defaultValue={editItem?.分類ID}
                   disabled={!!editItem}
                   className={cn(
-                    "w-full border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20 appearance-none",
+                    "w-full border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20 appearance-none",
                     editItem ? "bg-gray-100 text-gray-400 cursor-not-allowed" : "bg-gray-50 text-gray-800"
                   )}
                 >
@@ -3765,11 +3861,11 @@ export default function App() {
               </div>
 
               {!editItem && (
-                <div className="p-4 bg-orange-50 rounded-2xl border border-orange-100">
-                  <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                <div className="p-4 bg-brand-50 rounded-2xl border border-brand-100">
+                  <p className="text-[10px] font-bold text-brand-400 uppercase tracking-widest mb-1 flex items-center gap-1">
                     <Zap size={10} /> 商品代號預覽
                   </p>
-                  <p className="text-sm font-bold text-orange-600">
+                  <p className="text-sm font-bold text-brand-600">
                     選取分類後，系統將自動依據資料庫最大號碼加 1 生成。
                   </p>
                 </div>
@@ -3788,7 +3884,7 @@ export default function App() {
                   name="name" 
                   required 
                   defaultValue={editItem?.商品名稱}
-                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20" 
+                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" 
                   placeholder="例如：水光保濕面膜" 
                 />
               </div>
@@ -3798,7 +3894,7 @@ export default function App() {
                 <select 
                   name="status" 
                   defaultValue={editItem?.目前狀態 || '售賣中'}
-                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20 appearance-none"
+                  className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20 appearance-none"
                 >
                   <option value="售賣中">售賣中</option>
                   <option value="停售">停售</option>
@@ -3975,7 +4071,7 @@ export default function App() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷貨日期</label>
-                  <input name="date" type="date" required defaultValue={editItem?.銷貨日期 || today()} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20" />
+                  <input name="date" type="date" required defaultValue={editItem?.銷貨日期 || today()} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">訂單編號</label>
@@ -3989,13 +4085,13 @@ export default function App() {
                   name="prodId" 
                   defaultValue={editItem?.商品ID} 
                   required 
-                  colorTheme="orange"
+                  colorTheme="brand"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷售數量</label>
-                  <input name="qty" type="number" required defaultValue={editItem?.數量} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20" />
+                  <input name="qty" type="number" required defaultValue={editItem?.數量} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷售總金額</label>
@@ -4004,7 +4100,7 @@ export default function App() {
                     type="number" 
                     required 
                     defaultValue={editItem?.銷售金額} 
-                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20" 
+                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" 
                     placeholder="0"
                   />
                 </div>
@@ -4012,11 +4108,11 @@ export default function App() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷售平台</label>
-                  <input name="platform" defaultValue={editItem?.平台} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20" placeholder="例如：蝦皮 / 官網" />
+                  <input name="platform" defaultValue={editItem?.平台} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" placeholder="例如：蝦皮 / 官網" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">訂單狀態</label>
-                  <select name="status" defaultValue={editItem?.訂單狀態 || '未出貨'} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20 appearance-none">
+                  <select name="status" defaultValue={editItem?.訂單狀態 || '未出貨'} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20 appearance-none">
                     <option value="未出貨">未出貨</option>
                     <option value="待出貨">待出貨</option>
                     <option value="已出貨">已出貨</option>
@@ -4026,7 +4122,7 @@ export default function App() {
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">備註</label>
-                <textarea name="note" defaultValue={editItem?.備註} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-orange-500/20 h-20 resize-none"></textarea>
+                <textarea name="note" defaultValue={editItem?.備註} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20 h-20 resize-none"></textarea>
               </div>
               <button 
                 type="submit" 
@@ -4074,9 +4170,9 @@ export default function App() {
                   <p className="text-[10px] text-gray-400">若需針對單一商品刪除，請輸入完整商品名稱</p>
                 </div>
 
-                <label className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl cursor-pointer hover:bg-orange-100 transition-colors">
-                  <input type="checkbox" name="confirmDelete" required className="w-5 h-5 rounded border-orange-300 text-orange-600 focus:ring-orange-500" />
-                  <span className="text-sm font-bold text-orange-700">我確定要執行批次刪除，此動作無法復原</span>
+                <label className="flex items-center gap-3 p-4 bg-brand-50 rounded-2xl cursor-pointer hover:bg-brand-100 transition-colors">
+                  <input type="checkbox" name="confirmDelete" required className="w-5 h-5 rounded border-brand-300 text-brand-600 focus:ring-brand-500" />
+                  <span className="text-sm font-bold text-brand-700">我確定要執行批次刪除，此動作無法復原</span>
                 </label>
               </div>
 
@@ -4114,7 +4210,7 @@ export default function App() {
                 {showDeleteConfirm.table === '商品分類表' ? (
                   <span className="text-red-600">警告：刪除此「分類」將會同步刪除該分類下的所有商品及其相關的進銷貨訂單！</span>
                 ) : showDeleteConfirm.table === '庫存總表' ? (
-                  <span className="text-orange-600">警告：刪除此「商品」將會同步刪除該商品相關的所有進銷貨紀錄！</span>
+                  <span className="text-brand-600">警告：刪除此「商品」將會同步刪除該商品相關的所有進銷貨紀錄！</span>
                 ) : (
                   "此動作將無法復原，相關聯的資料可能會受到影響。"
                 )}
@@ -4156,8 +4252,8 @@ export default function App() {
               animate={{ scale: 1, opacity: 1 }}
               className="bg-white rounded-[2.5rem] p-10 max-w-sm w-full shadow-2xl text-center"
             >
-              <div className="w-20 h-20 bg-orange-100 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
-                <RefreshCw className="text-orange-600 animate-spin" size={36} />
+              <div className="w-20 h-20 bg-brand-100 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner">
+                <RefreshCw className="text-brand-600 animate-spin" size={36} />
               </div>
               <h3 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">庫存同步中</h3>
               <p className="text-gray-400 text-sm font-medium mb-8">正在重新計算 FIFO 成本與毛利...</p>
@@ -4166,10 +4262,10 @@ export default function App() {
                 <motion.div 
                   initial={{ width: 0 }}
                   animate={{ width: `${syncProgress}%` }}
-                  className="h-full bg-gradient-to-r from-orange-400 to-red-600 rounded-full shadow-lg"
+                  className="h-full bg-gradient-to-r from-brand-400 to-red-600 rounded-full shadow-lg"
                 />
               </div>
-              <span className="text-2xl font-black text-orange-600 font-mono italic">{syncProgress}%</span>
+              <span className="text-2xl font-black text-brand-600 font-mono italic">{syncProgress}%</span>
             </motion.div>
           </motion.div>
         )}
