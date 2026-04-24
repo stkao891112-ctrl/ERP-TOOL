@@ -2361,13 +2361,36 @@ export default function App() {
       <main className="flex-1 lg:ml-20 xl:ml-64 min-h-screen px-4 py-8 xl:px-12 xl:py-10 pb-32 lg:pb-10">
         {/* Top Bar */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-              {sidebarItems.find(i => i.id === activeTab)?.label}
-            </h1>
-            <p className="text-gray-500 mt-1">
-              {activeTab === 'dashboard' ? '歡迎回來，今天又是充滿元氣的一天！' : `管理您的${sidebarItems.find(i => i.id === activeTab)?.label}`}
-            </p>
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+                {sidebarItems.find(i => i.id === activeTab)?.label}
+              </h1>
+              <p className="text-gray-500 mt-1">
+                {activeTab === 'dashboard' ? '歡迎回來，今天又是充滿元氣的一天！' : `管理您的${sidebarItems.find(i => i.id === activeTab)?.label}`}
+              </p>
+            </div>
+            
+            {/* Mobile Theme Selector */}
+            <div className="lg:hidden flex items-center gap-2 p-2 bg-white rounded-2xl border border-gray-100 shadow-sm w-fit">
+              {[
+                { id: 'orange', color: '#f97316' },
+                { id: 'pink', color: '#ec4899' },
+                { id: 'blue', color: '#3b82f6' },
+                { id: 'emerald', color: '#10b981' },
+                { id: 'violet', color: '#8b5cf6' },
+              ].map((t) => (
+                <button 
+                  key={t.id}
+                  onClick={() => setTheme(t.id as any)}
+                  className={cn(
+                    "w-6 h-6 rounded-full transition-all ring-offset-2", 
+                    theme === t.id ? "ring-2 ring-gray-200 scale-110" : "opacity-40 hover:opacity-100"
+                  )}
+                  style={{ backgroundColor: t.color }}
+                />
+              ))}
+            </div>
           </div>
           
           <div className="flex items-center gap-4">
