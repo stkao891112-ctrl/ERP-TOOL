@@ -175,11 +175,21 @@ const AuthScreen = ({ onGuestLogin }: { onGuestLogin: () => void }) => {
     setLoading(true);
     try {
       // 嘗試以預設訪客帳號登入
-      const { error } = await sb.auth.signInWithPassword({ 
+      const { data, error } = await sb.auth.signInWithPassword({ 
         email: 'guest@demo.com', 
         password: 'guest123456' 
       });
       if (error) throw new Error('訪客帳號目前不可用，請聯繫管理員。');
+      
+      // 訪客登入後，立刻主動清空資料，確保下一位使用者是乾淨的
+      if (data?.user) {
+        console.log('Performing first-time guest cleanup...');
+        const tables = ['銷貨表', '進貨表', '其他收支表', '庫存總表', '商品分類表'];
+        for (const t of tables) {
+          await sb.from(t).delete().eq('user_id', data.user.id);
+        }
+        sessionStorage.setItem('guest_cleaned', 'true');
+      }
     } catch (error: any) {
       setErrorMsg(error.message);
     } finally {
@@ -964,23 +974,16 @@ export default function App() {
       console.log('Auth event:', event, 'Session user:', session?.user?.id);
       setSession(session);
       
-      // 訪客特殊邏輯
+      // 管理訪客登入標記
       if (session?.user?.email === 'guest@demo.com') {
         setIsGuest(true);
-        const hasCleaned = sessionStorage.getItem('guest_cleaned');
-        
-        // 只有在登入事件或是初次載入且尚未標記清理時執行
-        if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && !hasCleaned)) {
-          console.log('Guest cleanup triggered by:', event);
-          setIsGuestCleaned(false);
-          // Don't await so we don't block setCheckingSession(false)
-          cleanGuestDataInternal(session.user.id);
-        } else if (hasCleaned) {
+        // 如果 sessionStorage 有標記，表示這一節已經清理過或是從 refresh 回來的
+        if (sessionStorage.getItem('guest_cleaned')) {
           setIsGuestCleaned(true);
         }
       } else {
         setIsGuest(false);
-        setIsGuestCleaned(false);
+        setIsGuestCleaned(true);
       }
       
       // 登出時清空 sessionStorage 標記
