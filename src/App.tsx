@@ -95,7 +95,6 @@ type Purchase = {
   單位成本: number;
   金額?: number;
   進貨日期: string;
-  進貨來源?: string;
   訂單狀態: string;
   備註?: string;
 };
@@ -112,6 +111,7 @@ type Sale = {
   訂單編號: string;
   當前單位成本?: number;
   毛利?: number;
+  手續費?: number;
 };
 
 type OtherTrans = {
@@ -689,6 +689,10 @@ export default function App() {
   const [editItem, setEditItem] = useState<any>(null);
   const [showBatchDelete, setShowBatchDelete] = useState<'進貨表' | '銷貨表' | '其他收支表' | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{table: string, id: string} | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   // Auth State
   const [session, setSession] = useState<any>(null);
@@ -719,6 +723,15 @@ export default function App() {
   const [financePage, setFinancePage] = useState(1);
   const [purchasePage, setPurchasePage] = useState(1);
   const [salesPage, setSalesPage] = useState(1);
+
+  // Batch States for New Orders
+  const [batchSales, setBatchSales] = useState<any[]>([]);
+  const [batchPurchases, setBatchPurchases] = useState<any[]>([]);
+  const [batchOthers, setBatchOthers] = useState<any[]>([]);
+  const [batchFee, setBatchFee] = useState<number>(0);
+  const [feeAllocation, setFeeAllocation] = useState<'profit' | 'expense'>('profit');
+
+  const totalBatchSalesAmount = useMemo(() => batchSales.reduce((sum, s) => sum + (s.銷售金額 || 0), 0), [batchSales]);
 
   const [financeSearchApplied, setFinanceSearchApplied] = useState('');
   const [financeStartDateApplied, setFinanceStartDateApplied] = useState('');
@@ -1036,20 +1049,21 @@ export default function App() {
   const cleanGuestData = async () => {
     if (!isGuest || !session?.user?.id) return;
     
-    if (!window.confirm('確定要清空當前試用環境的所有資料嗎？這將無法復原。')) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await cleanGuestDataInternal(session.user.id);
-      alert('環境已重置，資料已全數清空。');
-    } catch (err) {
-      console.error('訪客資料清除失敗:', err);
-      alert('重置失敗，請稍後再試。');
-    } finally {
-      setLoading(false);
-    }
+    setConfirmDialog({
+      message: '確定要清空當前試用環境的所有資料嗎？這將無法復原。',
+      onConfirm: async () => {
+        try {
+          setLoading(true);
+          await cleanGuestDataInternal(session.user.id);
+          alert('環境已重置，資料已全數清空。');
+        } catch (err) {
+          console.error('訪客資料清除失敗:', err);
+          alert('重置失敗，請稍後再試。');
+        } finally {
+          setLoading(false);
+        }
+      }
+    });
   };
 
   const syncInventory = async (prodId: string) => {
@@ -1095,7 +1109,7 @@ export default function App() {
           saleCost += remainingToMatch * fallbackCost;
         }
 
-        const calculatedProfit = Math.round(((sale.銷售金額 || 0) - saleCost) * 100) / 100;
+        const calculatedProfit = Math.round(((sale.銷售金額 || 0) - saleCost - (sale.手續費 || 0)) * 100) / 100;
         const actualUnitCost = sale.數量 > 0 ? Math.round((saleCost / sale.數量) * 100) / 100 : 0;
         
         totalProfit += calculatedProfit;
@@ -1286,61 +1300,83 @@ export default function App() {
 
   const handleSavePurchase = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (isSubmitting) return;
-    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const date = formData.get('date') as string;
     const prodId = formData.get('prodId') as string;
     const qty = Number(formData.get('qty'));
     const cost = Number(formData.get('cost'));
     const status = formData.get('status') as string;
-    const source = formData.get('source') as string;
     const note = formData.get('note') as string;
+    const amount = Number(formData.get('amount'));
 
-    if (!prodId) {
-      setIsSubmitting(false);
-      return alert('請選擇商品');
-    }
+    if (!prodId) return alert('請選擇商品');
 
-    try {
-      let res;
-      const oldProdId = editItem?.商品ID;
-      
-      if (editItem) {
-        res = await sb.from('進貨表').update({
-          進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: Number(formData.get('amount')), 訂單狀態: status, 進貨來源: source, 備註: note,
+    if (editItem) {
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      try {
+        const { error } = await sb.from('進貨表').update({
+          進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: amount, 訂單狀態: status, 備註: note,
           user_id: session?.user?.id
         })
         .eq('id', editItem.id)
         .eq('user_id', session?.user?.id);
-      } else {
-        res = await sb.from('進貨表').insert([{
-          進貨日期: date, 
-          商品ID: prodId, 
-          數量: qty, 
-          單位成本: cost, 
-          金額: Number(formData.get('amount')), 
-          訂單狀態: status || '待入庫', 
-          進貨來源: source, 
-          備註: note,
-          user_id: session?.user?.id // 記錄擁有者
-        }]);
+        
+        if (error) {
+          alert('儲存失敗：' + error.message);
+        } else {
+          await syncInventory(prodId);
+          if (editItem.商品ID !== prodId) await syncInventory(editItem.商品ID);
+          setModalType(null);
+          setEditItem(null);
+          fetchData();
+        }
+      } catch (err) {
+        console.error(err);
+        alert('進貨儲存發生錯誤');
+      } finally {
+        setIsSubmitting(false);
+      }
+    } else {
+      // Add to batch instead of DB
+      const prod = prods.find(p => p.id === prodId);
+      setBatchPurchases(prev => [...prev, {
+        tempId: Date.now(),
+        date, 商品ID: prodId, 商品名稱: prod?.商品名稱, 數量: qty, 單位成本: cost, 金額: amount, 訂單狀態: status || '待入庫', 備註: note
+      }]);
+      // Reset form fields except date
+      setPurQty('');
+      setPurUnitCost('');
+      setPurTotal('');
+      const form = e.currentTarget;
+      const noteInput = form.querySelector('textarea[name="note"]') as HTMLTextAreaElement;
+      if (noteInput) noteInput.value = '';
+    }
+  };
+
+  const submitBatchPurchases = async () => {
+    if (batchPurchases.length === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const toInsert = batchPurchases.map(({ tempId, date, 商品名稱, ...rest }) => ({
+        ...rest,
+        進貨日期: date,
+        user_id: session?.user?.id
+      }));
+      const { error } = await sb.from('進貨表').insert(toInsert);
+      if (error) throw error;
+
+      const uniqueProdIds = Array.from(new Set(batchPurchases.map(p => p.商品ID)));
+      for (const pid of uniqueProdIds) {
+        await syncInventory(pid);
       }
       
-      if (res.error) {
-        alert('儲存失敗：' + res.error.message);
-      } else {
-        await syncInventory(prodId);
-        if (oldProdId && oldProdId !== prodId) {
-          await syncInventory(oldProdId);
-        }
-        setModalType(null);
-        setEditItem(null);
-        fetchData();
-      }
-    } catch (err) {
-      console.error(err);
-      alert('進貨儲存發生錯誤');
+      setBatchPurchases([]);
+      setModalType(null);
+      fetchData();
+      alert('進貨訂單已成功建立');
+    } catch (err: any) {
+      alert('建立失敗：' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -1348,84 +1384,136 @@ export default function App() {
 
   const handleSaveSale = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (isSubmitting) return;
-    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const date = formData.get('date') as string;
     const prodId = formData.get('prodId') as string;
     const qty = Number(formData.get('qty'));
     const amount = Number(formData.get('amount'));
+    const fee = Number(formData.get('fee') || 0);
     const platform = formData.get('platform') as string;
     const status = formData.get('status') as string;
     const note = formData.get('note') as string;
+    
     let finalNote = note;
-    if (amount === 0) {
-      finalNote = finalNote ? `${finalNote} (贈品)` : '贈品';
-    }
+    if (amount === 0) finalNote = finalNote ? `${finalNote} (贈品)` : '贈品';
 
-    if (!prodId) {
-      setIsSubmitting(false);
-      return alert('請先選擇商品');
-    }
+    if (!prodId) return alert('請先選擇商品');
 
-    try {
-      let res;
-      const oldProdId = editItem?.商品ID;
-
-      if (editItem) {
-        res = await sb.from('銷貨表').update({
-          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status, 備註: finalNote,
+    if (editItem) {
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      try {
+        const { error } = await sb.from('銷貨表').update({
+          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 手續費: fee, 平台: platform, 訂單狀態: status, 備註: finalNote,
           user_id: session?.user?.id
         })
         .eq('id', editItem.id)
         .eq('user_id', session?.user?.id);
-      } else {
-        const datePrefix = normalizeDateToOrderPrefix(date || today());
-        const { data: existingSales, error: seqErr } = await sb.from('銷貨表')
-          .select('訂單編號')
-          .like('訂單編號', `${datePrefix}%`)
-          .eq('user_id', session?.user?.id);
         
-        if (seqErr) console.warn('Seq fetch error:', seqErr);
-
-        let maxSeq = 0;
-        (existingSales || []).forEach((s: any) => {
-          if (s.訂單編號 && s.訂單編號.startsWith(datePrefix)) {
-            const seq = parseInt(s.訂單編號.replace(datePrefix, ''), 10);
-            if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
-          }
-        });
-        const orderNo = datePrefix + String(maxSeq + 1).padStart(3, '0');
-        
-        res = await sb.from('銷貨表').insert([{
-          銷貨日期: date, 
-          訂單編號: orderNo, 
-          商品ID: prodId, 
-          數量: qty, 
-          銷售金額: amount, 
-          平台: platform, 
-          訂單狀態: status || '未出貨', 
-          備註: finalNote,
-          當前單位成本: 0, 
-          毛利: 0,
-          user_id: session?.user?.id // 記錄擁有者
-        }]);
-      }
-
-      if (res.error) {
-        alert('儲存失敗：' + res.error.message);
-      } else {
-        await syncInventory(prodId);
-        if (oldProdId && oldProdId !== prodId) {
-          await syncInventory(oldProdId);
+        if (error) {
+          alert('儲存失敗：' + error.message);
+        } else {
+          await syncInventory(prodId);
+          if (editItem.商品ID !== prodId) await syncInventory(editItem.商品ID);
+          setModalType(null);
+          setEditItem(null);
+          fetchData();
         }
-        setModalType(null);
-        setEditItem(null);
-        fetchData();
+      } catch (err) {
+        console.error(err);
+        alert('發生錯誤，請稍後再試');
+      } finally {
+        setIsSubmitting(false);
       }
-    } catch (err) {
-      console.error('handleSaveSale error:', err);
-      alert('發生錯誤，請稍後再試');
+    } else {
+      // Add to batch
+      const prod = prods.find(p => p.id === prodId);
+      setBatchSales(prev => [...prev, {
+        tempId: Date.now(),
+        date, 商品ID: prodId, 商品名稱: prod?.商品名稱, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status || '未出貨', 備註: finalNote
+      }]);
+      // Reset form but keep date and platform
+      const form = e.currentTarget;
+      const qtyInput = form.querySelector('input[name="qty"]') as HTMLInputElement;
+      const amountInput = form.querySelector('input[name="amount"]') as HTMLInputElement;
+      const feeInput = form.querySelector('input[name="fee"]') as HTMLInputElement;
+      const noteInput = form.querySelector('textarea[name="note"]') as HTMLTextAreaElement;
+      if (qtyInput) qtyInput.value = '';
+      if (amountInput) amountInput.value = '';
+      if (feeInput) feeInput.value = '';
+      if (noteInput) noteInput.value = '';
+    }
+  };
+
+  const submitBatchSales = async () => {
+    if (batchSales.length === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const datePrefix = normalizeDateToOrderPrefix(batchSales[0].date || today());
+      const { data: existingSales } = await sb.from('銷貨表')
+        .select('訂單編號')
+        .like('訂單編號', `${datePrefix}%`)
+        .eq('user_id', session?.user?.id);
+      
+      let maxSeq = 0;
+      (existingSales || []).forEach((s: any) => {
+        if (s.訂單編號 && s.訂單編號.startsWith(datePrefix)) {
+          const seq = parseInt(s.訂單編號.replace(datePrefix, ''), 10);
+          if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+        }
+      });
+
+      const toInsert = batchSales.map(({ tempId, date, 商品名稱, ...rest }, index) => {
+        const orderNo = datePrefix + String(maxSeq + index + 1).padStart(3, '0');
+        let fee = 0;
+        let feeInfo = '';
+
+        if (batchFee > 0 && feeAllocation === 'profit' && totalBatchSalesAmount > 0) {
+          fee = Math.round(((rest.銷售金額 / totalBatchSalesAmount) * batchFee) * 100) / 100;
+          feeInfo = ` (平台手續費: ${fee})`;
+        }
+
+        return {
+          ...rest,
+          銷售金額: rest.銷售金額, // Keep gross amount
+          手續費: fee,            // New field
+          銷貨日期: date,
+          訂單編號: orderNo,
+          當前單位成本: 0,
+          毛利: 0,
+          備註: rest.備註 + feeInfo,
+          user_id: session?.user?.id
+        };
+      });
+
+      const { error } = await sb.from('銷貨表').insert(toInsert);
+      if (error) throw error;
+
+      // Handle Expense record if chosen
+      if (batchFee > 0 && feeAllocation === 'expense') {
+        const { error: expError } = await sb.from('其他收支表').insert([{
+          日期: batchSales[0].date || today(),
+          收支類型: '支出',
+          金額: batchFee,
+          項目內容: '平台手續費',
+          備註: `批次建立訂單時產生之手續費 (${toInsert.length} 筆訂單)`,
+          user_id: session?.user?.id
+        }]);
+        if (expError) console.error('Failed to create fee expense:', expError);
+      }
+
+      const uniqueProdIds = Array.from(new Set(batchSales.map(p => p.商品ID)));
+      for (const pid of uniqueProdIds) {
+        await syncInventory(pid);
+      }
+
+      setBatchSales([]);
+      setBatchFee(0);
+      setModalType(null);
+      fetchData();
+      alert('銷貨訂單已成功建立');
+    } catch (err: any) {
+      alert('建立失敗：' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -1433,8 +1521,6 @@ export default function App() {
 
   const handleSaveFinance = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (isSubmitting) return;
-    setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     const date = formData.get('date') as string;
     const type = formData.get('type') as '收入' | '支出';
@@ -1442,28 +1528,63 @@ export default function App() {
     const item = formData.get('item') as string;
     const note = formData.get('note') as string;
 
-    try {
-      if (editItem) {
+    if (editItem) {
+      if (isSubmitting) return;
+      setIsSubmitting(true);
+      try {
         const { error } = await sb.from('其他收支表').update({
           日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note,
           user_id: session?.user?.id
         })
         .eq('id', editItem.id)
         .eq('user_id', session?.user?.id);
-        if (error) alert(error.message);
-      } else {
-        const { error } = await sb.from('其他收支表').insert([{
-          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note,
-          user_id: session?.user?.id // 記錄擁有者
-        }]);
-        if (error) alert(error.message);
+        if (error) {
+          alert('儲存失敗：' + error.message);
+        } else {
+          setModalType(null);
+          setEditItem(null);
+          fetchData();
+        }
+      } catch (err) {
+        console.error(err);
+        alert('收支儲存發生錯誤');
+      } finally {
+        setIsSubmitting(false);
       }
+    } else {
+      // Add to batch
+      setBatchOthers(prev => [...prev, {
+        tempId: Date.now(),
+        日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
+      }]);
+      // Reset form but keep date and type
+      const form = e.currentTarget;
+      const itemInput = form.querySelector('input[name="item"]') as HTMLInputElement;
+      const amountInput = form.querySelector('input[name="amount"]') as HTMLInputElement;
+      const noteInput = form.querySelector('textarea[name="note"]') as HTMLTextAreaElement;
+      if (itemInput) itemInput.value = '';
+      if (amountInput) amountInput.value = '';
+      if (noteInput) noteInput.value = '';
+    }
+  };
+
+  const submitBatchOthers = async () => {
+    if (batchOthers.length === 0 || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const toInsert = batchOthers.map(({ tempId, ...rest }) => ({
+        ...rest,
+        user_id: session?.user?.id
+      }));
+      const { error } = await sb.from('其他收支表').insert(toInsert);
+      if (error) throw error;
+
+      setBatchOthers([]);
       setModalType(null);
-      setEditItem(null);
       fetchData();
-    } catch (err) {
-      console.error(err);
-      alert('收支儲存發生錯誤');
+      alert('收支紀錄已成功建立');
+    } catch (err: any) {
+      alert('建立失敗：' + err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -1604,6 +1725,10 @@ export default function App() {
     });
   };
 
+  const removeFromBatchSales = (tempId: number) => setBatchSales(prev => prev.filter(s => s.tempId !== tempId));
+  const removeFromBatchPurchases = (tempId: number) => setBatchPurchases(prev => prev.filter(p => p.tempId !== tempId));
+  const removeFromBatchOthers = (tempId: number) => setBatchOthers(prev => prev.filter(o => o.tempId !== tempId));
+
   const handleDownloadTemplate = () => {
     const headers = ['商品分類(代號)', '商品名稱', '商品狀態'];
     const csvContent = headers.join(',') + '\n';
@@ -1663,7 +1788,6 @@ export default function App() {
           const amount = parseNum(row['金額']);
           const unitCost = parseNum(row['單位成本']);
           const status = row['訂單狀態']?.toString().trim() || '待入庫';
-          const source = row['來源']?.toString().trim() || '';
           const note = row['備註']?.toString().trim() || '';
 
           if (!pName) {
@@ -1694,7 +1818,6 @@ export default function App() {
             單位成本: unitCost, 
             金額: amount, 
             進貨日期: date, 
-            進貨來源: source, 
             訂單狀態: status,
             備註: note,
             user_id: session?.user?.id
@@ -1743,7 +1866,7 @@ export default function App() {
   };
 
   const handleDownloadPurchaseTemplate = () => {
-    const headers = ['日期', '商品名稱', '數量', '金額', '單位成本', '訂單狀態', '來源', '備註'];
+    const headers = ['日期', '商品名稱', '數量', '金額', '單位成本', '訂單狀態', '備註'];
     const csvContent = headers.join(',') + '\n';
     const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
     const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8' });
@@ -2314,7 +2437,7 @@ export default function App() {
       const q = purchaseSearch.toLowerCase();
       const matchesSearch = (prod?.商品名稱 || '').toLowerCase().includes(q) || 
                             (prod?.商品代號 || '').toLowerCase().includes(q) || 
-                            (p.進貨來源 || '').toLowerCase().includes(q);
+                            (p.備註 || '').toLowerCase().includes(q)
       const matchesStart = !purchaseStartDate || p.進貨日期 >= purchaseStartDate;
       const matchesEnd = !purchaseEndDate || p.進貨日期 <= purchaseEndDate;
       return matchesSearch && matchesStart && matchesEnd;
@@ -3105,7 +3228,12 @@ export default function App() {
 
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button 
-                      onClick={syncAllInventory}
+                      onClick={() => {
+                        setConfirmDialog({
+                          message: '此為測試期間出現庫存獲利計算錯誤重新計算按鈕 執行後重新計算所有庫存與獲利 是否確定執行?',
+                          onConfirm: syncAllInventory
+                        });
+                      }}
                       disabled={isSubmitting}
                       className="p-3 text-emerald-600 hover:text-emerald-700 transition-colors bg-gray-50 rounded-xl hover:bg-emerald-100"
                       title="重新計算所有庫存與獲利"
@@ -3396,8 +3524,13 @@ export default function App() {
                       />
                     </label>
                     <button 
-                      onClick={() => setShowBatchDelete('其他收支表')}
-                      className="p-3 text-red-100 hover:text-red-500 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
+                      onClick={() => {
+                        setConfirmDialog({
+                          message: '此為測試期間功能 用於批次匯入錯誤快速刪除匯入資料的功能 沒事請勿執行 是否確定執行?',
+                          onConfirm: () => setShowBatchDelete('其他收支表')
+                        });
+                      }}
+                      className="p-3 text-red-500 hover:text-red-600 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
                       title="批次刪除數據"
                     >
                       <Trash2 size={20} />
@@ -3453,7 +3586,7 @@ export default function App() {
                               </span>
                             </td>
                             <td className="px-6 py-5">
-                              <p className="text-xs text-gray-400">{o.備註 || '無備註'}</p>
+                              <p className="text-sm text-gray-700 font-semibold">{o.備註 || '無備註'}</p>
                             </td>
                             <td className="px-6 py-5 text-right">
                               <div className="flex justify-end gap-2">
@@ -3498,7 +3631,7 @@ export default function App() {
                         <div className="flex justify-between items-end bg-gray-50 p-4 rounded-2xl">
                           <div>
                             <p className="text-[10px] text-gray-400 font-bold mb-0.5">備註說明</p>
-                            <p className="text-xs text-gray-600 italic">{o.備註 || '均無備註'}</p>
+                            <p className="text-sm text-gray-700 font-semibold">{o.備註 || '均無備註'}</p>
                           </div>
                           <div className="text-right">
                             <p className="text-[10px] text-gray-400 font-bold mb-0.5">交易金額</p>
@@ -3523,7 +3656,7 @@ export default function App() {
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                       <input 
                         type="text" 
-                        placeholder="搜尋商品名稱、代號或來源..." 
+                        placeholder="搜尋商品名稱、代號或備註..." 
                         value={purchaseSearch}
                         onChange={(e) => setPurchaseSearch(e.target.value)}
                         className="w-full bg-gray-50 border-none rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-brand-500/20"
@@ -3578,8 +3711,13 @@ export default function App() {
                       />
                     </label>
                     <button 
-                      onClick={() => setShowBatchDelete('進貨表')}
-                      className="p-3 text-red-400 hover:text-red-500 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
+                      onClick={() => {
+                        setConfirmDialog({
+                          message: '此為測試期間功能 用於批次匯入錯誤快速刪除匯入資料的功能 沒事請勿執行 是否確定執行?',
+                          onConfirm: () => setShowBatchDelete('進貨表')
+                        });
+                      }}
+                      className="p-3 text-red-500 hover:text-red-600 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
                       title="批次刪除數據"
                     >
                       <Trash2 size={20} />
@@ -3613,7 +3751,7 @@ export default function App() {
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">商品資訊</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">數量</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">總額 / 單價</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">狀態 / 來源 / 備註</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">狀態 / 備註</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">操作</th>
                         </tr>
                       </thead>
@@ -3641,8 +3779,7 @@ export default function App() {
                                 )}>
                                   {p.訂單狀態 || '待入庫'}
                                 </span>
-                                <p className="text-sm font-semibold text-gray-700">{p.進貨來源 || '--'}</p>
-                                <p className="text-xs text-gray-400">{p.備註 || '無備註'}</p>
+                                <p className="text-sm font-semibold text-gray-700">{p.備註 || '--'}</p>
                               </td>
                               <td className="px-6 py-5 text-right">
                                 <div className="flex justify-end gap-2">
@@ -3692,8 +3829,8 @@ export default function App() {
                           <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
                             <div className="grid grid-cols-2 gap-4 pb-2 border-b border-gray-200/50">
                               <div>
-                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">進貨來源</p>
-                                <p className="text-sm font-bold text-gray-700">{p.進貨來源 || '--'}</p>
+                                <p className="text-[10px] text-gray-400 font-bold mb-0.5">訂單狀態</p>
+                                <p className="text-sm font-bold text-gray-700">{p.訂單狀態}</p>
                               </div>
                               <div className="text-right">
                                 <p className="text-[10px] text-gray-400 font-bold mb-0.5">數量</p>
@@ -3713,7 +3850,7 @@ export default function App() {
                             </div>
                           </div>
 
-                          <p className="text-[10px] text-gray-400 italic bg-gray-50/50 p-2 rounded-lg border border-gray-100">{p.備註 || '無備註'}</p>
+                          <p className="text-sm font-semibold text-gray-700 bg-gray-50/50 p-2 rounded-lg border border-gray-100">{p.備註 || '無備註'}</p>
                         </div>
                       );
                     })}
@@ -3784,8 +3921,13 @@ export default function App() {
                        />
                     </label>
                     <button 
-                      onClick={() => setShowBatchDelete('銷貨表')}
-                      className="p-3 text-red-100 hover:text-red-500 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
+                      onClick={() => {
+                        setConfirmDialog({
+                          message: '此為測試期間功能 用於批次匯入錯誤快速刪除匯入資料的功能 沒事請勿執行 是否確定執行?',
+                          onConfirm: () => setShowBatchDelete('銷貨表')
+                        });
+                      }}
+                      className="p-3 text-red-500 hover:text-red-600 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
                       title="批次刪除數據"
                     >
                       <Trash2 size={20} />
@@ -3817,7 +3959,7 @@ export default function App() {
                             <div className="flex items-center">訂單資訊 <SortIconGeneric dir={salesSortDir} active={true} /></div>
                           </th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">商品 / 數量</th>
-                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">總金額</th>
+                          <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">總金額/手續費</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">毛利</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest">狀態 / 備註</th>
                           <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-widest text-right">操作</th>
@@ -3840,7 +3982,8 @@ export default function App() {
                                 <p className="text-xs text-gray-500">數量: <span className="font-bold text-brand-600">{s.數量}</span></p>
                               </td>
                               <td className="px-6 py-5">
-                                <span className="font-black text-lg text-gray-900">{formatCurrency(s.銷售金額)}</span>
+                                <p className="font-black text-lg text-gray-900">{formatCurrency(s.銷售金額)}</p>
+                                {s.手續費 && s.手續費 > 0 ? <p className="text-[10px] text-brand-500 font-bold">手續費: -{formatCurrency(s.手續費)}</p> : null}
                               </td>
                                 <td className="px-6 py-5">
                                   <p className="font-bold text-emerald-600">
@@ -3857,7 +4000,7 @@ export default function App() {
                                 )}>
                                   {s.訂單狀態}
                                 </span>
-                                <p className="text-[10px] text-gray-400 truncate max-w-[150px]">{s.備註 || '無備註'}</p>
+                                <p className="text-sm text-gray-700 font-semibold truncate max-w-[150px] mt-1">{s.備註 || '無備註'}</p>
                               </td>
                               <td className="px-6 py-5 text-right">
                                 <div className="flex justify-end gap-2">
@@ -3923,6 +4066,7 @@ export default function App() {
                               <div>
                                 <p className="text-[10px] text-gray-400 font-bold mb-0.5">銷售總額</p>
                                 <p className="text-sm font-black text-gray-900">{formatCurrency(s.銷售金額)}</p>
+                                {s.手續費 && s.手續費 > 0 ? <p className="text-[9px] text-brand-500 font-bold">手續費: -{formatCurrency(s.手續費)}</p> : null}
                               </div>
                               <div>
                                 <p className="text-[10px] text-gray-400 font-bold mb-0.5">預估毛利</p>
@@ -3942,7 +4086,7 @@ export default function App() {
                             )}>
                               {s.訂單狀態}
                             </span>
-                            <p className="text-[10px] text-gray-400 italic max-w-[60%] truncate">{s.備註 || '無備註'}</p>
+                            <p className="text-sm text-gray-700 font-semibold max-w-[60%] truncate mt-1">{s.備註 || '無備註'}</p>
                           </div>
                         </div>
                       );
@@ -4214,7 +4358,7 @@ export default function App() {
         )}
 
         {modalType === 'finance' && (
-          <Modal title={editItem ? "編輯收支" : "新增收支"} isOpen={true} onClose={() => setModalType(null)}>
+          <Modal title={editItem ? "編輯收支" : "新增收支 (可批次輸入)"} isOpen={true} onClose={() => { setModalType(null); setBatchOthers([]); }}>
             <form onSubmit={handleSaveFinance} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -4243,22 +4387,55 @@ export default function App() {
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">備註</label>
                 <textarea name="note" defaultValue={editItem?.備註} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20 h-24 resize-none" placeholder="補充說明..."></textarea>
               </div>
+              
               <button 
                 type="submit" 
-                disabled={isSubmitting}
-                className={cn(
-                  "w-full text-white font-bold py-4 rounded-2xl shadow-lg transition-all mt-4",
-                  isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-emerald-600 hover:bg-emerald-700"
-                )}
+                className="w-full bg-emerald-50 text-emerald-600 font-bold py-4 rounded-2xl border-2 border-emerald-100 hover:bg-emerald-100 transition-all flex items-center justify-center gap-2"
               >
-                {isSubmitting ? "儲存中..." : "完成儲存"}
+                <Plus size={18} />
+                <span>{editItem ? '確認修改' : '新增筆數'}</span>
               </button>
             </form>
+
+            {!editItem && batchOthers.length > 0 && (
+              <div className="mt-8 pt-8 border-t border-gray-100 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                    <History size={16} className="text-emerald-500" />
+                    預覽待新增清單 ({batchOthers.length})
+                  </h4>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {batchOthers.map(b => (
+                    <div key={b.tempId} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between group">
+                      <div className="min-w-0 pr-4">
+                        <p className="text-[10px] text-gray-400 font-bold">{b.日期}</p>
+                        <p className="text-sm font-bold text-gray-900 truncate">[{b.收支類型}] {b.項目內容}</p>
+                        <p className="text-xs font-black text-emerald-600">{formatCurrency(b.金額)}</p>
+                      </div>
+                      <button onClick={() => removeFromBatchOthers(b.tempId)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={submitBatchOthers}
+                  disabled={isSubmitting}
+                  className={cn(
+                    "w-full text-white font-bold py-4 rounded-2xl shadow-xl transition-all",
+                    isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-[#111827] hover:opacity-90 shadow-emerald-500/10"
+                  )}
+                >
+                  {isSubmitting ? "正在建立..." : `確認新建 ${batchOthers.length} 筆紀錄`}
+                </button>
+              </div>
+            )}
           </Modal>
         )}
 
         {modalType === 'purchase' && (
-          <Modal title={editItem ? "編輯進貨" : "新增進貨"} isOpen={true} onClose={() => setModalType(null)}>
+          <Modal title={editItem ? "編輯進貨" : "新增進貨 (可批次輸入)"} isOpen={true} onClose={() => { setModalType(null); setBatchPurchases([]); }}>
             <form onSubmit={handleSavePurchase} className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">進貨日期</label>
@@ -4334,10 +4511,6 @@ export default function App() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">進貨來源</label>
-                  <input name="source" defaultValue={editItem?.進貨來源} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500/20" placeholder="例如：供應商名稱" />
-                </div>
-                <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">訂單狀態</label>
                   <select name="status" defaultValue={editItem?.訂單狀態 || '待入庫'} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500/20 appearance-none">
                     <option value="待入庫">待入庫</option>
@@ -4349,22 +4522,54 @@ export default function App() {
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">備註</label>
                 <textarea name="note" defaultValue={editItem?.備註} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500/20 h-24 resize-none"></textarea>
               </div>
+              
               <button 
                 type="submit" 
-                disabled={isSubmitting}
-                className={cn(
-                  "w-full text-white font-bold py-4 rounded-2xl shadow-lg transition-all mt-4",
-                  isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-                )}
+                className="w-full bg-blue-50 text-blue-600 font-bold py-4 rounded-2xl border-2 border-blue-100 hover:bg-blue-100 transition-all flex items-center justify-center gap-2"
               >
-                {isSubmitting ? "儲存中..." : "確認進貨"}
+                <Plus size={18} />
+                <span>{editItem ? '確認修改' : '新增筆數'}</span>
               </button>
             </form>
+
+            {!editItem && batchPurchases.length > 0 && (
+              <div className="mt-8 pt-8 border-t border-gray-100 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                    <History size={16} className="text-blue-500" />
+                    預覽待新增清單 ({batchPurchases.length})
+                  </h4>
+                </div>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {batchPurchases.map(b => (
+                    <div key={b.tempId} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between group">
+                      <div className="min-w-0 pr-4">
+                        <p className="text-sm font-bold text-gray-900 truncate">{b.商品名稱}</p>
+                        <p className="text-xs font-black text-blue-600">數量: {b.數量} | {formatCurrency(b.金額)}</p>
+                      </div>
+                      <button onClick={() => removeFromBatchPurchases(b.tempId)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={submitBatchPurchases}
+                  disabled={isSubmitting}
+                  className={cn(
+                    "w-full text-white font-bold py-4 rounded-2xl shadow-xl transition-all",
+                    isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-[#111827] hover:opacity-90 shadow-blue-500/10"
+                  )}
+                >
+                  {isSubmitting ? "正在建立..." : `確認新建 ${batchPurchases.length} 筆進貨`}
+                </button>
+              </div>
+            )}
           </Modal>
         )}
 
         {modalType === 'sale' && (
-          <Modal title={editItem ? "編輯訂單" : "新建訂單"} isOpen={true} onClose={() => setModalType(null)}>
+          <Modal title={editItem ? "編輯訂單" : "新建訂單 (可批次輸入)"} isOpen={true} onClose={() => { setModalType(null); setBatchSales([]); }}>
             <form onSubmit={handleSaveSale} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -4386,7 +4591,7 @@ export default function App() {
                   colorTheme="brand"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷售數量</label>
                   <input name="qty" type="number" required defaultValue={editItem?.數量} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" />
@@ -4402,11 +4607,36 @@ export default function App() {
                     placeholder="0"
                   />
                 </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-brand-600 uppercase tracking-widest">平台手續費</label>
+                  <input 
+                    name="fee" 
+                    type="number" 
+                    step="0.01"
+                    defaultValue={editItem?.手續費 || 0} 
+                    className="w-full bg-brand-50 border-none rounded-2xl p-4 text-sm font-bold text-brand-600 focus:ring-2 focus:ring-brand-500/20" 
+                    placeholder="0.00"
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷售平台</label>
-                  <input name="platform" defaultValue={editItem?.平台} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" placeholder="例如：蝦皮 / 官網" />
+                  <input 
+                    name="platform" 
+                    list="platform-options"
+                    defaultValue={editItem?.平台} 
+                    className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" 
+                    placeholder="輸入或選擇平台..."
+                  />
+                  <datalist id="platform-options">
+                    <option value="蝦皮" />
+                    <option value="賣貨便" />
+                    <option value="面交" />
+                    <option value="Line" />
+                    <option value="Facebook" />
+                    <option value="官網" />
+                  </datalist>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">訂單狀態</label>
@@ -4422,17 +4652,115 @@ export default function App() {
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">備註</label>
                 <textarea name="note" defaultValue={editItem?.備註} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20 h-20 resize-none"></textarea>
               </div>
+
               <button 
                 type="submit" 
-                disabled={isSubmitting}
-                className={cn(
-                  "w-full text-white font-bold py-4 rounded-2xl shadow-lg transition-all mt-4",
-                  isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-[#111827] hover:opacity-90"
-                )}
+                className="w-full bg-brand-50 text-brand-600 font-bold py-4 rounded-2xl border-2 border-brand-100 hover:bg-brand-100 transition-all flex items-center justify-center gap-2"
               >
-                {isSubmitting ? "建立中..." : (editItem ? "儲存訂單變更" : "立即建立訂單")}
+                <Plus size={18} />
+                <span>{editItem ? '確認修改' : '新增筆數'}</span>
               </button>
             </form>
+
+            {!editItem && batchSales.length > 0 && (
+              <div className="mt-8 pt-8 border-t border-gray-100 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest flex items-center gap-2">
+                    <History size={16} className="text-brand-500" />
+                    預覽待新增清單 ({batchSales.length})
+                  </h4>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400 font-bold uppercase">批次總額</p>
+                    <p className="text-sm font-black text-gray-900">{formatCurrency(totalBatchSalesAmount)}</p>
+                    {batchFee > 0 && feeAllocation === 'profit' && (
+                      <p className="text-[10px] text-brand-500 font-bold">預估扣除手續費後: {formatCurrency(totalBatchSalesAmount - batchFee)}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 平台手續費設定 */}
+                <div className="bg-brand-50/50 p-4 rounded-2xl border border-brand-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-brand-600 uppercase tracking-widest flex items-center gap-2">
+                      <CreditCard size={14} />
+                      整筆訂單平台手續費
+                    </label>
+                    <input 
+                      type="number" 
+                      value={batchFee || ''} 
+                      onChange={(e) => setBatchFee(Number(e.target.value))}
+                      className="w-24 bg-white border-none rounded-xl px-3 py-2 text-sm font-bold text-brand-600 focus:ring-2 focus:ring-brand-500/20 text-right"
+                      placeholder="0"
+                    />
+                  </div>
+                  {batchFee > 0 && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button 
+                        onClick={() => setFeeAllocation('profit')}
+                        className={cn(
+                          "py-2 px-3 rounded-xl text-[10px] font-bold transition-all border-2",
+                          feeAllocation === 'profit' 
+                            ? "bg-brand-600 text-white border-brand-600" 
+                            : "bg-white text-gray-400 border-gray-100 hover:border-brand-200"
+                        )}
+                      >
+                        按金額分攤至商品毛利
+                      </button>
+                      <button 
+                        onClick={() => setFeeAllocation('expense')}
+                        className={cn(
+                          "py-2 px-3 rounded-xl text-[10px] font-bold transition-all border-2",
+                          feeAllocation === 'expense' 
+                            ? "bg-brand-600 text-white border-brand-600" 
+                            : "bg-white text-gray-400 border-gray-100 hover:border-brand-200"
+                        )}
+                      >
+                        列為單獨其他支出
+                      </button>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-brand-400 font-medium">
+                    {batchFee > 0 
+                      ? (feeAllocation === 'profit' 
+                          ? "手續費將依銷售金額比例從各商品的銷售金額中扣除，直接影響毛利。" 
+                          : "手續費將在其他收支表中新增一筆「平台手續費」支出紀錄。")
+                      : "輸入手續費金額後可選擇分攤方式"}
+                  </p>
+                </div>
+
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                  {batchSales.map(b => (
+                    <div key={b.tempId} className="p-3 bg-gray-50 rounded-xl border border-gray-100 flex items-center justify-between group">
+                      <div className="min-w-0 pr-4">
+                        <p className="text-sm font-bold text-gray-900 truncate">{b.商品名稱}</p>
+                        <p className="text-[10px] text-gray-400 font-bold">{b.平台 || '未知平台'}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-black text-brand-600">數量: {b.數量} | {formatCurrency(b.銷售金額)}</p>
+                          {batchFee > 0 && feeAllocation === 'profit' && (
+                            <span className="text-[10px] text-brand-400 font-bold">
+                              (估手續費: -{formatCurrency((b.銷售金額 / totalBatchSalesAmount) * batchFee)})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button onClick={() => removeFromBatchSales(b.tempId)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button 
+                  onClick={submitBatchSales}
+                  disabled={isSubmitting}
+                  className={cn(
+                    "w-full text-white font-bold py-4 rounded-2xl shadow-xl transition-all",
+                    isSubmitting ? "bg-gray-400 cursor-not-allowed" : "bg-[#111827] hover:opacity-90 shadow-brand-500/10"
+                  )}
+                >
+                  {isSubmitting ? "正在建立..." : `確認新建 ${batchSales.length} 筆訂單`}
+                </button>
+              </div>
+            )}
           </Modal>
         )}
 
@@ -4529,6 +4857,37 @@ export default function App() {
                   )}
                 >
                   {isSubmitting ? "刪除中..." : "確定刪除"}
+                </button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {confirmDialog && (
+          <Modal title="操作確認" isOpen={true} onClose={() => setConfirmDialog(null)}>
+            <div className="text-center py-4">
+              <div className="w-16 h-16 bg-brand-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="text-brand-500" size={32} />
+              </div>
+              <h4 className="text-lg font-bold text-gray-900 mb-2">確定要執行此操作嗎？</h4>
+              <p className="text-sm text-gray-500 mb-8 font-medium leading-relaxed px-4">
+                {confirmDialog.message}
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setConfirmDialog(null)}
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-4 rounded-2xl transition-all"
+                >
+                  取消
+                </button>
+                <button 
+                  onClick={() => {
+                    confirmDialog.onConfirm();
+                    setConfirmDialog(null);
+                  }}
+                  className="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-brand-500/20 transition-all"
+                >
+                  確定執行
                 </button>
               </div>
             </div>
