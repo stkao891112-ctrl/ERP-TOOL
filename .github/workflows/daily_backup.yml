@@ -37,17 +37,19 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           
-          # 先同步遠端變動，確保基礎是新的
-          git pull origin main --rebase
-
+          # 先將變動加入暫存區，避免 pull --rebase 報錯
           if [ -d "backups" ] && [ "$(ls -A backups)" ]; then
             git add backups/
+            
             if git diff --staged --quiet; then
               echo "數據無變動，無需提交。"
             else
+              # 先提交本地變動
               git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
-              # 再次嘗試推送到遠端，若失敗則重複拉取
-              git push origin main || (git pull origin main --rebase && git push origin main)
+              
+              # 再次嘗試拉取並推送，處理可能發生的遠端衝突
+              git pull origin main --rebase
+              git push origin main
             fi
           else
             echo "未偵測到新的備份檔案，略過提交步驟。"
