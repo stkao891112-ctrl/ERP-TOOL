@@ -21,24 +21,13 @@ const TABLES = [
   '其他收支表'
 ];
 
-async function backupTable(tableName) {
+async function backupTable(tableName, backupDir) {
   console.log(`[${tableName}] 開始讀取...`);
   const { data, error } = await supabase.from(tableName).select('*');
   
   if (error) {
     console.error(`[${tableName}] 讀取失敗:`, error.message);
     throw new Error(`${tableName} 讀取失敗: ${error.message}`);
-  }
-
-  const now = new Date();
-  const dateStr = now.toISOString().split('T')[0];
-  const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
-  const dirPath = path.join(process.cwd(), 'backups', `${dateStr}_${timeStr}`);
-  
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-    // 建立一個隱藏檔確保資料夾存在
-    fs.writeFileSync(path.join(dirPath, '.metadata'), `Backup initiated at ${new Date().toISOString()}`);
   }
 
   if (!data || data.length === 0) {
@@ -58,19 +47,29 @@ async function backupTable(tableName) {
   const csvContent = [headers.join(','), ...csvRows].join('\n');
   const contentWithBOM = '\ufeff' + csvContent;
 
-  fs.writeFileSync(path.join(dirPath, `${tableName}.csv`), contentWithBOM);
+  fs.writeFileSync(path.join(backupDir, `${tableName}.csv`), contentWithBOM);
   console.log(`[${tableName}] 成功匯出 ${data.length} 筆資料！`);
 }
 
 async function runBackup() {
   console.log('--- 備份除錯日誌 ---');
-  console.log('時間 (UTC):', new Date().toISOString());
+  const now = new Date();
+  console.log('時間 (UTC):', now.toISOString());
   console.log('URL 設定狀態:', !!supabaseUrl);
   console.log('Key 設定狀態:', !!supabaseKey);
+
+  const dateStr = now.toISOString().split('T')[0];
+  const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
+  const dirPath = path.join(process.cwd(), 'backups', `${dateStr}_${timeStr}`);
   
   try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+      fs.writeFileSync(path.join(dirPath, '.metadata'), `Backup initiated at ${now.toISOString()}`);
+    }
+
     for (const table of TABLES) {
-      await backupTable(table);
+      await backupTable(table, dirPath);
     }
     console.log('--- 備份作業功德圓滿 ---');
   } catch (err) {
