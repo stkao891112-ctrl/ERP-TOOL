@@ -24,7 +24,7 @@ jobs:
           node-version: '20' # 回到 20 比較穩，那些警告只是警告，不影響執行
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run backup script
         env:
@@ -36,21 +36,19 @@ jobs:
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
+          git config --local core.quotepath false
           
-          # 先將變動加入暫存區，避免 pull --rebase 報錯
-          if [ -d "backups" ] && [ "$(ls -A backups)" ]; then
-            git add backups/
-            
-            if git diff --staged --quiet; then
-              echo "數據無變動，無需提交。"
-            else
-              # 先提交本地變動
-              git commit -m "Auto-backup: $(date +'%Y-%m-%d')"
-              
-              # 再次嘗試拉取並推送，處理可能發生的遠端衝突
-              git pull origin main --rebase
-              git push origin main
-            fi
+          # 檢查是否有變動
+          git add -A
+          
+          if git diff --staged --quiet; then
+            echo "數據無變動，無需提交。"
           else
-            echo "未偵測到新的備份檔案，略過提交步驟。"
+            # 提交變動
+            git commit -m "Auto-backup: $(date +'%Y-%m-%d %H:%M:%S')"
+            
+            # 使用 --autostash 處理拉取時可能產生的意外未暫存變動
+            # 並且在推送到遠端之前先獲取最新的變動
+            git pull origin main --rebase --autostash
+            git push origin main
           fi

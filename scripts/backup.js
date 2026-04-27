@@ -30,8 +30,10 @@ async function backupTable(tableName) {
     throw new Error(`${tableName} 讀取失敗: ${error.message}`);
   }
 
-  const dateStr = new Date().toISOString().split('T')[0];
-  const dirPath = path.join(process.cwd(), 'backups', dateStr);
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+  const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
+  const dirPath = path.join(process.cwd(), 'backups', `${dateStr}_${timeStr}`);
   
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
