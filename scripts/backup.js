@@ -58,11 +58,16 @@ async function runBackup() {
   console.log('URL 設定狀態:', !!supabaseUrl);
   console.log('Key 設定狀態:', !!supabaseKey);
 
+  const backupsRoot = path.join(process.cwd(), 'backups');
   const dateStr = now.toISOString().split('T')[0];
   const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '');
-  const dirPath = path.join(process.cwd(), 'backups', `${dateStr}_${timeStr}`);
+  const dirPath = path.join(backupsRoot, `${dateStr}_${timeStr}`);
   
   try {
+    if (!fs.existsSync(backupsRoot)) {
+      fs.mkdirSync(backupsRoot, { recursive: true });
+      fs.writeFileSync(path.join(backupsRoot, '.gitkeep'), '');
+    }
     if (!fs.existsSync(dirPath)) {
       fs.mkdirSync(dirPath, { recursive: true });
       fs.writeFileSync(path.join(dirPath, '.metadata'), `Backup initiated at ${now.toISOString()}`);
