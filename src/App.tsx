@@ -41,7 +41,11 @@ import {
   LogOut,
   Lock,
   Mail,
-  Pin
+  Pin,
+  Wrench,
+  Settings,
+  ShieldCheck,
+  EyeOff
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -644,6 +648,8 @@ const ImportProgressOverlay = ({ progress }: { progress: number }) => (
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [isAdminMode, setIsAdminMode] = useState(localStorage.getItem('app-admin-mode') === 'true');
+  const [isPrivacyMode, setIsPrivacyMode] = useState(localStorage.getItem('app-privacy-mode') === 'true');
   const [theme, setTheme] = useState<'orange' | 'pink' | 'blue' | 'emerald' | 'violet'>(
     (localStorage.getItem('app-theme') as any) || 'orange'
   );
@@ -1382,6 +1388,113 @@ export default function App() {
     }
   };
 
+  const [showRepairModal, setShowRepairModal] = useState(false);
+  const [repairDateRange, setRepairDateRange] = useState({ start: '', end: '', all: true });
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [repairProgress, setRepairProgress] = useState(0);
+  const [repairStatus, setRepairStatus] = useState('');
+
+  const repairSalesOrderNumbers = async () => {
+    if (isSubmitting || isRepairing) return;
+    
+    try {
+      setShowRepairModal(false);
+      setIsRepairing(true);
+      setRepairProgress(0);
+      setRepairStatus('正在檢查訂單資料...');
+
+      const { data: sales, error } = await sb.from('銷貨表')
+        .select('*')
+        .eq('user_id', session?.user?.id);
+
+      if (error) throw error;
+      if (!sales || sales.length === 0) {
+        alert('目前沒有銷貨數據。');
+        setIsRepairing(false);
+        return;
+      }
+
+      // 1. 篩選出日期與編號不匹配的項目
+      let mismatched = sales.filter((s: Sale) => {
+        if (!s.銷貨日期 || !s.訂單編號) return true;
+        const expectedPrefix = normalizeDateToOrderPrefix(s.銷貨日期);
+        return !s.訂單編號.startsWith(expectedPrefix);
+      });
+
+      // 2. 如果非「全部修復」，則根據日期區間進一步篩選
+      if (!repairDateRange.all) {
+        mismatched = mismatched.filter((s: Sale) => {
+          const d = s.銷貨日期;
+          if (repairDateRange.start && d < repairDateRange.start) return false;
+          if (repairDateRange.end && d > repairDateRange.end) return false;
+          return true;
+        });
+      }
+
+      if (mismatched.length === 0) {
+        alert('檢查完畢！選定區間內所有編號皆一致，無需修復。');
+        setIsRepairing(false);
+        return;
+      }
+
+      // 3. 取得所有不符項目的日期，並由舊到新排序處理
+      const datesToRepair = Array.from(new Set(mismatched.map((s: Sale) => s.銷貨日期))).sort() as string[];
+      let totalFixed = 0;
+      const totalToFix = mismatched.length;
+      
+      for (const date of datesToRepair) {
+        const prefix = normalizeDateToOrderPrefix(date);
+        
+        // 找出該日期目前「已經正確」的訂單，確定起始流水號
+        const correctOnDate = sales.filter((s: Sale) => 
+          s.銷貨日期 === date && 
+          s.訂單編號 && 
+          s.訂單編號.startsWith(prefix)
+        );
+        
+        let currentMaxSeq = 0;
+        correctOnDate.forEach((s: Sale) => {
+          const seqPart = s.訂單編號.replace(prefix, '');
+          const seq = parseInt(seqPart, 10);
+          if (!isNaN(seq) && seq > currentMaxSeq) currentMaxSeq = seq;
+        });
+
+        // 找出該日期「待修復」的訂單，依 ID 排序確保序號穩定
+        const itemsToFixOnDate = mismatched
+          .filter((s: Sale) => s.銷貨日期 === date)
+          .sort((a: Sale, b: Sale) => a.id.localeCompare(b.id));
+
+        for (const s of itemsToFixOnDate) {
+          currentMaxSeq++;
+          const newOrderNo = prefix + String(currentMaxSeq).padStart(3, '0');
+          
+          setRepairStatus(`正在修復: ${s.訂單編號 || '無編號'} -> ${newOrderNo}`);
+          
+          const { error: updateError } = await sb.from('銷貨表')
+            .update({ 訂單編號: newOrderNo })
+            .eq('id', s.id)
+            .eq('user_id', session?.user?.id);
+            
+          if (updateError) throw updateError;
+          
+          totalFixed++;
+          setRepairProgress(Math.floor((totalFixed / totalToFix) * 100));
+        }
+      }
+
+      setRepairStatus('修復完畢，正在同步最新報表...');
+      await fetchData();
+      alert(`修復功德圓滿！共更新了 ${totalFixed} 筆日期不一致的訂單編號。`);
+    } catch (err: any) {
+      console.error('Repair error:', err);
+      alert('修復失敗：' + (err.message || '未知錯誤'));
+    } finally {
+      setIsRepairing(false);
+      setRepairProgress(0);
+      setRepairStatus('');
+    }
+  };
+
   const handleSaveSale = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -1403,8 +1516,31 @@ export default function App() {
       if (isSubmitting) return;
       setIsSubmitting(true);
       try {
+        let newOrderNo = editItem.訂單編號;
+        const oldPrefix = normalizeDateToOrderPrefix(editItem.銷貨日期);
+        const newPrefix = normalizeDateToOrderPrefix(date);
+
+        // 如果日期變更，或者目前的編號不符合新日期的前綴，則重新生成編號
+        if (oldPrefix !== newPrefix || !editItem.訂單編號.startsWith(newPrefix)) {
+          const { data: existingSales } = await sb.from('銷貨表')
+            .select('訂單編號')
+            .like('訂單編號', `${newPrefix}%`)
+            .eq('user_id', session?.user?.id);
+          
+          let maxSeq = 0;
+          (existingSales || []).forEach((s: any) => {
+            if (s.訂單編號 && s.訂單編號.startsWith(newPrefix)) {
+              const seq = parseInt(s.訂單編號.replace(newPrefix, ''), 10);
+              if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+            }
+          });
+          newOrderNo = newPrefix + String(maxSeq + 1).padStart(3, '0');
+        }
+
         const { error } = await sb.from('銷貨表').update({
-          銷貨日期: date, 商品ID: prodId, 數量: qty, 銷售金額: amount, 手續費: fee, 平台: platform, 訂單狀態: status, 備註: finalNote,
+          銷貨日期: date, 
+          訂單編號: newOrderNo,
+          商品ID: prodId, 數量: qty, 銷售金額: amount, 手續費: fee, 平台: platform, 訂單狀態: status, 備註: finalNote,
           user_id: session?.user?.id
         })
         .eq('id', editItem.id)
@@ -1449,42 +1585,54 @@ export default function App() {
     if (batchSales.length === 0 || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const datePrefix = normalizeDateToOrderPrefix(batchSales[0].date || today());
-      const { data: existingSales } = await sb.from('銷貨表')
-        .select('訂單編號')
-        .like('訂單編號', `${datePrefix}%`)
-        .eq('user_id', session?.user?.id);
+      const dateSeqs: { [key: string]: number } = {};
       
-      let maxSeq = 0;
-      (existingSales || []).forEach((s: any) => {
-        if (s.訂單編號 && s.訂單編號.startsWith(datePrefix)) {
-          const seq = parseInt(s.訂單編號.replace(datePrefix, ''), 10);
-          if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+      const toInsert = [];
+      for (let i = 0; i < batchSales.length; i++) {
+        const { tempId, date, 商品名稱, ...rest } = batchSales[i];
+        const datePrefix = normalizeDateToOrderPrefix(date || today());
+        
+        if (dateSeqs[datePrefix] === undefined) {
+          const { data: existingSales } = await sb.from('銷貨表')
+            .select('訂單編號')
+            .like('訂單編號', `${datePrefix}%`)
+            .eq('user_id', session?.user?.id);
+          
+          let maxSeq = 0;
+          (existingSales || []).forEach((s: any) => {
+            if (s.訂單編號 && s.訂單編號.startsWith(datePrefix)) {
+              const seq = parseInt(s.訂單編號.replace(datePrefix, ''), 10);
+              if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+            }
+          });
+          dateSeqs[datePrefix] = maxSeq;
         }
-      });
 
-      const toInsert = batchSales.map(({ tempId, date, 商品名稱, ...rest }, index) => {
-        const orderNo = datePrefix + String(maxSeq + index + 1).padStart(3, '0');
+        dateSeqs[datePrefix]++;
+        const orderNo = datePrefix + String(dateSeqs[datePrefix]).padStart(3, '0');
+        
         let fee = 0;
         let feeInfo = '';
-
         if (batchFee > 0 && feeAllocation === 'profit' && totalBatchSalesAmount > 0) {
           fee = Math.round(((rest.銷售金額 / totalBatchSalesAmount) * batchFee) * 100) / 100;
           feeInfo = ` (平台手續費: ${fee})`;
         }
 
-        return {
+        toInsert.push({
           ...rest,
-          銷售金額: rest.銷售金額, // Keep gross amount
-          手續費: fee,            // New field
+          手續費: fee,
           銷貨日期: date,
           訂單編號: orderNo,
           當前單位成本: 0,
           毛利: 0,
           備註: rest.備註 + feeInfo,
           user_id: session?.user?.id
-        };
-      });
+        });
+      }
+      
+      // Since item names might be slightly different in the original code, let's re-verify the map logic.
+      // Line 1550: const toInsert = batchSales.map(({ tempId, date, 商品名稱, ...rest }, index) => {
+      // My loop should follow this.
 
       const { error } = await sb.from('銷貨表').insert(toInsert);
       if (error) throw error;
@@ -1971,10 +2119,11 @@ export default function App() {
           for (let i = 0; i < validItems.length; i++) {
             const item = validItems[i];
             const datePrefix = normalizeDateToOrderPrefix(item.date);
-            if (!dateSeqs[datePrefix]) {
+            if (dateSeqs[datePrefix] === undefined) {
               const { data: existingSales } = await sb.from('銷貨表')
                 .select('訂單編號')
-                .like('訂單編號', `${datePrefix}%`);
+                .like('訂單編號', `${datePrefix}%`)
+                .eq('user_id', session?.user?.id);
               
               let maxSeq = 0;
               (existingSales || []).forEach((s: any) => {
@@ -2548,6 +2697,7 @@ export default function App() {
     { id: 'finance', label: '其他收支', icon: CreditCard },
     { id: 'purchase', label: '進貨管理', icon: ShoppingCart },
     { id: 'sales', label: '銷售訂單', icon: History },
+    { id: 'settings', label: '系統設定', icon: Settings },
   ];
 
   if (checkingSession || (session && loading)) {
@@ -2617,6 +2767,8 @@ export default function App() {
     if (!active) return <ArrowUpDown size={12} className="ml-1 opacity-40" />;
     return dir === 'asc' ? <ArrowUpDown size={12} className="ml-1 text-brand-500" /> : <ArrowUpDown size={12} className="ml-1 text-brand-500 rotate-180" />;
   };
+
+  const maskAmount = (amount: string | number) => isPrivacyMode ? '****' : amount;
 
   return (
     <div className="min-h-screen bg-[#F8F9FA] flex flex-col lg:flex-row font-sans text-gray-900 overflow-x-hidden" data-theme={theme}>
@@ -2878,7 +3030,7 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                   <KPICard 
                     label={dashViewType === 'year' ? "年度總營收" : "本月營業額"}
-                    value={formatCurrency(dashData.rev)} 
+                    value={maskAmount(formatCurrency(dashData.rev))} 
                     sub={`${dashData.ms.length} 筆訂單`} 
                     icon={TrendingUp} 
                     colorClass="bg-blue-600 shadow-blue-500/30 shadow-lg" 
@@ -2886,7 +3038,7 @@ export default function App() {
                   />
                   <KPICard 
                     label={dashViewType === 'year' ? "年度採購支出" : "本月採購額"}
-                    value={formatCurrency(dashData.cost)} 
+                    value={maskAmount(formatCurrency(dashData.cost))} 
                     sub="庫存補充支出" 
                     icon={ShoppingCart} 
                     colorClass="bg-brand-500 shadow-brand-500/30 shadow-lg" 
@@ -2894,7 +3046,7 @@ export default function App() {
                   />
                   <KPICard 
                     label="雜項淨收支" 
-                    value={(dashData.oNet >= 0 ? '+' : '-') + formatCurrency(Math.abs(dashData.oNet))} 
+                    value={isPrivacyMode ? "****" : (dashData.oNet >= 0 ? '+' : '-') + formatCurrency(Math.abs(dashData.oNet))} 
                     sub="廣告/運費/包材" 
                     icon={Wallet} 
                     colorClass={dashData.oNet >= 0 ? "bg-emerald-500 shadow-emerald-500/30 shadow-lg" : "bg-red-500 shadow-red-500/30 shadow-lg"} 
@@ -2902,7 +3054,7 @@ export default function App() {
                   />
                   <KPICard 
                     label={dashViewType === 'year' ? "年度總淨利" : "本月總淨利"}
-                    value={formatCurrency(dashData.net)} 
+                    value={maskAmount(formatCurrency(dashData.net))} 
                     sub={`利潤率 ${dashData.rev ? ((dashData.net / dashData.rev) * 100).toFixed(1) : 0}%`} 
                     icon={BarChart3} 
                     colorClass="bg-[#2D3142] shadow-gray-500/30 shadow-lg" 
@@ -2964,10 +3116,10 @@ export default function App() {
                               axisLine={false} 
                               tickLine={false} 
                               tick={{fill: '#9CA3AF', fontSize: 11, fontWeight: 500}} 
-                              tickFormatter={(value) => `NT$${(value / 1000).toLocaleString()}k`} 
+                              tickFormatter={(value) => isPrivacyMode ? "****" : `NT$${(value / 1000).toLocaleString()}k`} 
                             />
                             <Tooltip 
-                              formatter={(value: any) => [`NT$${value.toLocaleString()}`, '']}
+                              formatter={(value: any) => [isPrivacyMode ? "****" : `NT$${value.toLocaleString()}`, '']}
                               contentStyle={{ 
                                 borderRadius: '16px', 
                                 border: 'none', 
@@ -2996,10 +3148,10 @@ export default function App() {
                               axisLine={false} 
                               tickLine={false} 
                               tick={{fill: '#9CA3AF', fontSize: 11, fontWeight: 500}} 
-                              tickFormatter={(value) => `NT$${(value / 1000).toLocaleString()}k`} 
+                              tickFormatter={(value) => isPrivacyMode ? "****" : `NT$${(value / 1000).toLocaleString()}k`} 
                             />
                             <Tooltip 
-                              formatter={(value: any) => [`NT$${value.toLocaleString()}`, '']}
+                              formatter={(value: any) => [isPrivacyMode ? "****" : `NT$${value.toLocaleString()}`, '']}
                               contentStyle={{ 
                                 borderRadius: '16px', 
                                 border: 'none', 
@@ -3039,7 +3191,7 @@ export default function App() {
                               ))}
                             </Pie>
                             <Tooltip 
-                              formatter={(value: any) => [`NT$${value.toLocaleString()}`, '金額']}
+                              formatter={(value: any) => [isPrivacyMode ? "****" : `NT$${value.toLocaleString()}`, '金額']}
                               contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
                             />
                             <Legend 
@@ -3070,7 +3222,7 @@ export default function App() {
                             </div>
                             <div className="text-right">
                               <p className="text-xs font-bold text-brand-600">{p.qty} 件</p>
-                              <p className="text-[10px] text-gray-400">{formatCurrency(p.rev)}</p>
+                              <p className="text-[10px] text-gray-400">{maskAmount(formatCurrency(p.rev))}</p>
                             </div>
                           </div>
                         )) : (
@@ -3229,14 +3381,18 @@ export default function App() {
                   <div className="flex flex-wrap items-center gap-3 pt-2">
                     <button 
                       onClick={() => {
+                        if (!isAdminMode) return;
                         setConfirmDialog({
                           message: '此為測試期間出現庫存獲利計算錯誤重新計算按鈕 執行後重新計算所有庫存與獲利 是否確定執行?',
                           onConfirm: syncAllInventory
                         });
                       }}
-                      disabled={isSubmitting}
-                      className="p-3 text-emerald-600 hover:text-emerald-700 transition-colors bg-gray-50 rounded-xl hover:bg-emerald-100"
-                      title="重新計算所有庫存與獲利"
+                      disabled={isSubmitting || !isAdminMode}
+                      className={cn(
+                        "p-3 transition-colors rounded-xl",
+                        !isAdminMode ? "text-gray-300 bg-gray-50 cursor-not-allowed" : "text-emerald-600 bg-gray-50 hover:bg-emerald-100"
+                      )}
+                      title={isAdminMode ? "重新計算所有庫存與獲利" : "管理員模式已停用"}
                     >
                       <RotateCcw size={20} className={cn(isSubmitting && "animate-spin")} />
                     </button>
@@ -3525,13 +3681,18 @@ export default function App() {
                     </label>
                     <button 
                       onClick={() => {
+                        if (!isAdminMode) return;
                         setConfirmDialog({
                           message: '此為測試期間功能 用於批次匯入錯誤快速刪除匯入資料的功能 沒事請勿執行 是否確定執行?',
                           onConfirm: () => setShowBatchDelete('其他收支表')
                         });
                       }}
-                      className="p-3 text-red-500 hover:text-red-600 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
-                      title="批次刪除數據"
+                      disabled={!isAdminMode}
+                      className={cn(
+                        "p-3 rounded-xl transition-colors",
+                        !isAdminMode ? "text-gray-300 bg-gray-50 cursor-not-allowed" : "text-red-500 bg-red-50 hover:bg-red-100"
+                      )}
+                      title={isAdminMode ? "批次刪除數據" : "管理員模式已停用"}
                     >
                       <Trash2 size={20} />
                     </button>
@@ -3712,13 +3873,18 @@ export default function App() {
                     </label>
                     <button 
                       onClick={() => {
+                        if (!isAdminMode) return;
                         setConfirmDialog({
                           message: '此為測試期間功能 用於批次匯入錯誤快速刪除匯入資料的功能 沒事請勿執行 是否確定執行?',
                           onConfirm: () => setShowBatchDelete('進貨表')
                         });
                       }}
-                      className="p-3 text-red-500 hover:text-red-600 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
-                      title="批次刪除數據"
+                      disabled={!isAdminMode}
+                      className={cn(
+                        "p-3 rounded-xl transition-colors",
+                        !isAdminMode ? "text-gray-300 bg-gray-50 cursor-not-allowed" : "text-red-500 bg-red-50 hover:bg-red-100"
+                      )}
+                      title={isAdminMode ? "批次刪除數據" : "管理員模式已停用"}
                     >
                       <Trash2 size={20} />
                     </button>
@@ -3858,6 +4024,130 @@ export default function App() {
                 </Card>
               </div>
             )}
+            {activeTab === 'settings' && (
+              <div className="max-w-2xl mx-auto space-y-6">
+                <div className="bg-white rounded-[2.5rem] p-8 sm:p-12 shadow-xl border border-gray-100">
+                  <div className="flex items-center gap-4 mb-10">
+                    <div className="w-16 h-16 bg-brand-50 text-brand-500 rounded-[2rem] flex items-center justify-center shadow-inner">
+                      <ShieldCheck size={32} />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-black text-gray-900 tracking-tight">系統權限管理</h3>
+                      <p className="text-gray-400 font-bold text-sm">切換管理員模式以存取進階系統功能</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className={cn(
+                      "flex items-center justify-between p-6 rounded-[2rem] transition-all duration-500 border-2",
+                      isAdminMode ? "bg-brand-50 border-brand-200 shadow-lg shadow-brand-500/5" : "bg-gray-50 border-transparent"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
+                          isAdminMode ? "bg-brand-500 text-white rotate-[360deg]" : "bg-gray-200 text-gray-400"
+                        )}>
+                          <Lock size={20} />
+                        </div>
+                        <div>
+                          <p className="font-black text-gray-900">管理員模式 (Admin Mode)</p>
+                          <p className="text-xs font-bold text-gray-400 mt-0.5">控制批次刪除與數據修復權限</p>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          const newVal = !isAdminMode;
+                          setIsAdminMode(newVal);
+                          localStorage.setItem('app-admin-mode', String(newVal));
+                        }}
+                        className={cn(
+                          "relative w-16 h-8 rounded-full transition-all duration-500 overflow-hidden",
+                          isAdminMode ? "bg-brand-500" : "bg-gray-200"
+                        )}
+                      >
+                        <motion.div 
+                          className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-lg flex items-center justify-center"
+                          animate={{ x: isAdminMode ? 32 : 0 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        >
+                          {isAdminMode && <Check size={14} className="text-brand-500" />}
+                        </motion.div>
+                      </button>
+                    </div>
+
+                    <div className={cn(
+                      "flex items-center justify-between p-6 rounded-[2rem] transition-all duration-500 border-2",
+                      isPrivacyMode ? "bg-blue-50 border-blue-200 shadow-lg shadow-blue-500/5" : "bg-gray-50 border-transparent"
+                    )}>
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
+                          isPrivacyMode ? "bg-blue-500 text-white rotate-[360deg]" : "bg-gray-200 text-gray-400"
+                        )}>
+                          <EyeOff size={20} />
+                        </div>
+                        <div>
+                          <p className="font-black text-gray-900">隱私模式 (Privacy Mode)</p>
+                          <p className="text-xs font-bold text-gray-400 mt-0.5">隱藏主面板敏感金額數據</p>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          const newVal = !isPrivacyMode;
+                          setIsPrivacyMode(newVal);
+                          localStorage.setItem('app-privacy-mode', String(newVal));
+                        }}
+                        className={cn(
+                          "relative w-16 h-8 rounded-full transition-all duration-500 overflow-hidden",
+                          isPrivacyMode ? "bg-blue-500" : "bg-gray-200"
+                        )}
+                      >
+                        <motion.div 
+                          className="absolute top-1 left-1 w-6 h-6 bg-white rounded-full shadow-lg flex items-center justify-center"
+                          animate={{ x: isPrivacyMode ? 32 : 0 }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        >
+                          {isPrivacyMode && <Check size={14} className="text-blue-500" />}
+                        </motion.div>
+                      </button>
+                    </div>
+
+                    <div className="p-6 bg-amber-50 rounded-[2rem] border border-amber-100 border-dashed">
+                      <div className="flex gap-4">
+                        <AlertCircle className="text-amber-500 shrink-0" size={20} />
+                        <div className="space-y-2">
+                          <p className="text-xs font-bold text-amber-700 leading-relaxed">
+                            注意：管理員模式開啟後，將解鎖以下具備風險的功能：
+                          </p>
+                          <ul className="text-[10px] font-black text-amber-600/70 space-y-1 list-disc pl-4 uppercase tracking-wider">
+                            <li>全域庫存與獲利數據重新計算 (Sync Inventory)</li>
+                            <li>其他收支 / 進貨管理 / 銷貨訂單 的批次刪除按鈕</li>
+                            <li>銷貨訂單編號與日期不一致修復工具</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100">
+                  <h4 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6">關於系統</h4>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center py-4 border-b border-gray-50">
+                      <span className="text-sm font-bold text-gray-500">系統版本</span>
+                      <span className="text-sm font-black text-gray-900 italic">v2.4. repair-kit</span>
+                    </div>
+                    <div className="flex justify-between items-center py-4 border-b border-gray-50">
+                      <span className="text-sm font-bold text-gray-500">最後同步時間</span>
+                      <span className="text-sm font-black text-gray-900">{new Date().toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === 'sales' && (
               <div className="space-y-6">
                 <div className="bg-white p-4 sm:p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4">
@@ -3922,15 +4212,34 @@ export default function App() {
                     </label>
                     <button 
                       onClick={() => {
+                        if (!isAdminMode) return;
                         setConfirmDialog({
                           message: '此為測試期間功能 用於批次匯入錯誤快速刪除匯入資料的功能 沒事請勿執行 是否確定執行?',
                           onConfirm: () => setShowBatchDelete('銷貨表')
                         });
                       }}
-                      className="p-3 text-red-500 hover:text-red-600 transition-colors bg-red-50 rounded-xl hover:bg-red-100"
-                      title="批次刪除數據"
+                      disabled={!isAdminMode}
+                      className={cn(
+                        "p-3 rounded-xl transition-colors",
+                        !isAdminMode ? "text-gray-300 bg-gray-50 cursor-not-allowed" : "text-red-500 bg-red-50 hover:bg-red-100"
+                      )}
+                      title={isAdminMode ? "批次刪除數據" : "管理員模式已停用"}
                     >
                       <Trash2 size={20} />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (!isAdminMode) return;
+                        setShowRepairModal(true);
+                      }}
+                      disabled={!isAdminMode}
+                      className={cn(
+                        "p-3 rounded-xl transition-colors",
+                        !isAdminMode ? "text-gray-300 bg-gray-50 cursor-not-allowed" : "text-amber-500 bg-amber-50 hover:bg-amber-100"
+                      )}
+                      title={isAdminMode ? "修復編號與日期不一致" : "管理員模式已停用"}
+                    >
+                      <Wrench size={20} />
                     </button>
                     <button 
                       onClick={() => { setModalType('sale'); setEditItem(null); }}
@@ -4956,6 +5265,126 @@ export default function App() {
               >
                 太棒了，完成！
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- 修復日期區間選擇 --- */}
+      <AnimatePresence>
+        {showRepairModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center">
+                  <Wrench size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">修復編號日期</h3>
+                  <p className="text-xs font-bold text-gray-400 mt-0.5">系統將根據銷貨日期重新分配正確流水號</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-2xl border-2 border-transparent hover:border-amber-100 transition-colors">
+                  <input 
+                    type="checkbox" 
+                    id="repairAll"
+                    checked={repairDateRange.all} 
+                    onChange={(e) => setRepairDateRange(prev => ({ ...prev, all: e.target.checked }))}
+                    className="w-5 h-5 rounded-lg border-gray-300 text-amber-500 focus:ring-amber-500"
+                  />
+                  <label htmlFor="repairAll" className="text-sm font-bold text-gray-700 cursor-pointer flex-1">修復全部歷史訂單</label>
+                </div>
+
+                {!repairDateRange.all && (
+                  <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">啟始日期</label>
+                      <input 
+                        type="date" 
+                        value={repairDateRange.start}
+                        onChange={(e) => setRepairDateRange(prev => ({ ...prev, start: e.target.value }))}
+                        className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">結束日期</label>
+                      <input 
+                        type="date" 
+                        value={repairDateRange.end}
+                        onChange={(e) => setRepairDateRange(prev => ({ ...prev, end: e.target.value }))}
+                        className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm font-bold text-gray-700 focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button 
+                    onClick={() => setShowRepairModal(false)}
+                    className="flex-1 py-4 px-6 rounded-2xl font-bold text-sm text-gray-400 hover:bg-gray-100 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    onClick={repairSalesOrderNumbers}
+                    className="flex-[2] py-4 px-6 bg-amber-500 text-white rounded-2xl font-black text-sm hover:bg-amber-600 transition-colors shadow-lg shadow-amber-200"
+                  >
+                    確認執行修復
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* --- 修復進度視窗 --- */}
+      <AnimatePresence>
+        {isRepairing && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center"
+            >
+              <div className="w-16 h-16 bg-amber-50 text-amber-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Wrench className="animate-pulse" size={32} />
+              </div>
+              <h3 className="text-xl font-black text-gray-900 mb-2">正在修復訂單編號</h3>
+              <p className="text-sm text-gray-500 mb-8 font-medium">{repairStatus}</p>
+              
+              <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden mb-4">
+                <motion.div 
+                  className="absolute top-0 left-0 h-full bg-amber-500"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${repairProgress}%` }}
+                  transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+                />
+              </div>
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs font-black text-amber-600 italic">PROCESSING...</span>
+                <span className="text-xs font-bold text-gray-400">{repairProgress}%</span>
+              </div>
+              
+              <p className="mt-8 text-[10px] text-gray-400 font-bold uppercase tracking-widest leading-relaxed">
+                請勿關閉視窗或重新整理頁面<br />正在確保數據庫與時間軸一致性
+              </p>
             </motion.div>
           </motion.div>
         )}
