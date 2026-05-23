@@ -12,6 +12,7 @@ import {
   Package, 
   Tag, 
   Wallet, 
+  Banknote,
   ShoppingCart, 
   Plus, 
   Search, 
@@ -129,9 +130,33 @@ type OtherTrans = {
 
 // --- Helper Functions ---
 const today = () => new Date().toISOString().split('T')[0];
+const nowTime = () => {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+const extractDate = (dateStr: string | undefined) => {
+  if (!dateStr) return today();
+  return dateStr.split(/[ T]/)[0];
+};
+const extractTime = (dateStr: string | undefined) => {
+  if (!dateStr) return nowTime();
+  const parts = dateStr.split(/[ T]/);
+  if (parts.length > 1) {
+    return parts[1].slice(0, 5);
+  }
+  return nowTime();
+};
+const combineDateTime = (date: string, time: string) => `${date} ${time}:00`;
+const formatDisplayDate = (dateStr: string | undefined) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split(/[ T]/);
+  const date = parts[0];
+  const time = parts[1] ? parts[1].slice(0, 5) : '';
+  return time && time !== '00:00' ? `${date} ${time}` : date;
+};
 const normalizeDateToOrderPrefix = (dateStr: string) => {
   if (!dateStr) return '';
-  const clean = dateStr.split(' ')[0]; // Remove potential time part
+  const clean = dateStr.split(/[ T]/)[0]; // Remove potential time part
   const parts = clean.split(/[-/]/);
   if (parts.length === 3) {
     const y = parts[0];
@@ -329,7 +354,7 @@ const Modal = ({ isOpen, onClose, title, children }: { isOpen: boolean, onClose:
             <X size={20} />
           </button>
         </div>
-        <div className="p-6 max-h-[75vh] overflow-y-auto">
+        <div className="p-6 max-h-[85vh] md:max-h-[75vh] overflow-y-auto overscroll-contain">
           {children}
         </div>
       </motion.div>
@@ -459,19 +484,19 @@ const ProductSearchSelect = ({
                   autoFocus
                   type="text"
                   placeholder="輸入關鍵字搜尋..."
-                  className="w-full bg-gray-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-0"
+                  className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 md:py-2 text-base md:text-sm focus:ring-0"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
                 />
               </div>
-              <ul className="max-h-60 overflow-y-auto">
+              <ul className="max-h-[300px] md:max-h-60 overflow-y-auto overscroll-contain touch-pan-y">
                 {filtered.length > 0 ? (
                   filtered.map(p => (
                     <li 
                       key={p.id}
                       className={cn(
-                        "px-4 py-3 text-sm cursor-pointer transition-colors flex items-center justify-between group",
+                        "px-4 py-4 md:py-3 text-sm cursor-pointer transition-colors flex items-center justify-between group",
                         selectedId === p.id ? selectedBgClass : hoverClass
                       )}
                       onClick={() => {
@@ -653,6 +678,9 @@ export default function App() {
   const [theme, setTheme] = useState<'orange' | 'pink' | 'blue' | 'emerald' | 'violet'>(
     (localStorage.getItem('app-theme') as any) || 'orange'
   );
+  const [bgStyle, setBgStyle] = useState<'white' | 'pink' | 'dark'>(
+    (localStorage.getItem('app-bg-style') as any) || 'white'
+  );
   const [cats, setCats] = useState<Category[]>([]);
   const [prods, setProds] = useState<Product[]>([]);
   const [purch, setPurch] = useState<Purchase[]>([]);
@@ -759,6 +787,19 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('app-theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-bg-style', bgStyle);
+    localStorage.setItem('app-bg-style', bgStyle);
+  }, [bgStyle]);
+
+  const bgConfig = {
+    white: { body: "bg-[#F8F9FA]", sidebar: "bg-[#111827] text-white", text: "text-gray-900", card: "bg-white text-gray-900", border: "border-gray-100" },
+    pink: { body: "bg-[#FFF1F2]", sidebar: "bg-[#111827] text-white", text: "text-rose-900", card: "bg-white/80 backdrop-blur-md text-rose-900", border: "border-rose-100" },
+    dark: { body: "bg-[#374151]", sidebar: "bg-white text-gray-900 border-r border-slate-100", text: "text-white", card: "bg-white/10 border border-white/15 backdrop-blur-md text-white", border: "border-white/20" }
+  };
+
+  const curBg = bgConfig[bgStyle];
 
   const [purQty, setPurQty] = useState<string | number>('');
   const [purUnitCost, setPurUnitCost] = useState<string | number>('');
@@ -1308,6 +1349,8 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const date = formData.get('date') as string;
+    const time = formData.get('time') as string;
+    const combinedDate = combineDateTime(date, time);
     const prodId = formData.get('prodId') as string;
     const qty = Number(formData.get('qty'));
     const cost = Number(formData.get('cost'));
@@ -1322,7 +1365,7 @@ export default function App() {
       setIsSubmitting(true);
       try {
         const { error } = await sb.from('進貨表').update({
-          進貨日期: date, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: amount, 訂單狀態: status, 備註: note,
+          進貨日期: combinedDate, 商品ID: prodId, 數量: qty, 單位成本: cost, 金額: amount, 訂單狀態: status, 備註: note,
           user_id: session?.user?.id
         })
         .eq('id', editItem.id)
@@ -1348,7 +1391,7 @@ export default function App() {
       const prod = prods.find(p => p.id === prodId);
       setBatchPurchases(prev => [...prev, {
         tempId: Date.now(),
-        date, 商品ID: prodId, 商品名稱: prod?.商品名稱, 數量: qty, 單位成本: cost, 金額: amount, 訂單狀態: status || '待入庫', 備註: note
+        date: combinedDate, 商品ID: prodId, 商品名稱: prod?.商品名稱, 數量: qty, 單位成本: cost, 金額: amount, 訂單狀態: status || '待入庫', 備註: note
       }]);
       // Reset form fields except date
       setPurQty('');
@@ -1499,6 +1542,8 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const date = formData.get('date') as string;
+    const time = formData.get('time') as string;
+    const combinedDate = combineDateTime(date, time);
     const prodId = formData.get('prodId') as string;
     const qty = Number(formData.get('qty'));
     const amount = Number(formData.get('amount'));
@@ -1518,7 +1563,7 @@ export default function App() {
       try {
         let newOrderNo = editItem.訂單編號;
         const oldPrefix = normalizeDateToOrderPrefix(editItem.銷貨日期);
-        const newPrefix = normalizeDateToOrderPrefix(date);
+        const newPrefix = normalizeDateToOrderPrefix(combinedDate);
 
         // 如果日期變更，或者目前的編號不符合新日期的前綴，則重新生成編號
         if (oldPrefix !== newPrefix || !editItem.訂單編號.startsWith(newPrefix)) {
@@ -1538,7 +1583,7 @@ export default function App() {
         }
 
         const { error } = await sb.from('銷貨表').update({
-          銷貨日期: date, 
+          銷貨日期: combinedDate, 
           訂單編號: newOrderNo,
           商品ID: prodId, 數量: qty, 銷售金額: amount, 手續費: fee, 平台: platform, 訂單狀態: status, 備註: finalNote,
           user_id: session?.user?.id
@@ -1566,7 +1611,7 @@ export default function App() {
       const prod = prods.find(p => p.id === prodId);
       setBatchSales(prev => [...prev, {
         tempId: Date.now(),
-        date, 商品ID: prodId, 商品名稱: prod?.商品名稱, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status || '未出貨', 備註: finalNote
+        date: combinedDate, 商品ID: prodId, 商品名稱: prod?.商品名稱, 數量: qty, 銷售金額: amount, 平台: platform, 訂單狀態: status || '未出貨', 備註: finalNote
       }]);
       // Reset form but keep date and platform
       const form = e.currentTarget;
@@ -1671,6 +1716,8 @@ export default function App() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const date = formData.get('date') as string;
+    const time = formData.get('time') as string;
+    const combinedDate = combineDateTime(date, time);
     const type = formData.get('type') as '收入' | '支出';
     const amount = Number(formData.get('amount'));
     const item = formData.get('item') as string;
@@ -1681,7 +1728,7 @@ export default function App() {
       setIsSubmitting(true);
       try {
         const { error } = await sb.from('其他收支表').update({
-          日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note,
+          日期: combinedDate, 收支類型: type, 金額: amount, 項目內容: item, 備註: note,
           user_id: session?.user?.id
         })
         .eq('id', editItem.id)
@@ -1703,7 +1750,7 @@ export default function App() {
       // Add to batch
       setBatchOthers(prev => [...prev, {
         tempId: Date.now(),
-        日期: date, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
+        日期: combinedDate, 收支類型: type, 金額: amount, 項目內容: item, 備註: note
       }]);
       // Reset form but keep date and type
       const form = e.currentTarget;
@@ -2696,7 +2743,7 @@ export default function App() {
     { id: 'inventory', label: '全域庫存', icon: Box },
     { id: 'finance', label: '其他收支', icon: CreditCard },
     { id: 'purchase', label: '進貨管理', icon: ShoppingCart },
-    { id: 'sales', label: '銷售訂單', icon: History },
+    { id: 'sales', label: '銷售訂單', icon: Banknote },
     { id: 'settings', label: '系統設定', icon: Settings },
   ];
 
@@ -2771,7 +2818,7 @@ export default function App() {
   const maskAmount = (amount: string | number) => isPrivacyMode ? '****' : amount;
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col lg:flex-row font-sans text-gray-900 overflow-x-hidden" data-theme={theme}>
+    <div className={cn("min-h-screen flex flex-col lg:flex-row font-sans overflow-x-hidden transition-colors duration-500", curBg.body, curBg.text)} data-theme={theme} data-bg-style={bgStyle}>
       {/* --- Import Progress Overlay --- */}
       {isImporting && <ImportProgressOverlay progress={importProgress} />}
 
@@ -2780,7 +2827,7 @@ export default function App() {
       </AnimatePresence>
 
       {/* --- Sidebar (Desktop) --- */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-full w-20 xl:w-64 bg-[#111827] text-white flex-col z-40 transition-all duration-300">
+      <aside className={cn("hidden lg:flex fixed left-0 top-0 h-full w-20 xl:w-64 flex-col z-40 transition-all duration-500 shadow-2xl", curBg.sidebar)}>
         <div className="p-4 xl:p-8 flex items-center justify-center xl:justify-start gap-3">
           <motion.div 
             whileHover={{ scale: 1.1, rotate: 5 }}
@@ -2799,8 +2846,8 @@ export default function App() {
               className={cn(
                 "w-full flex items-center justify-center xl:justify-start gap-4 p-4 xl:px-6 rounded-2xl transition-all duration-200 group relative",
                 activeTab === item.id 
-                  ? "bg-white/10 text-white font-semibold" 
-                  : "text-gray-400 hover:text-white hover:bg-white/5"
+                  ? (bgStyle === 'dark' ? "bg-gray-100 text-gray-900 font-semibold" : "bg-white/10 text-white font-semibold")
+                  : (bgStyle === 'dark' ? "text-gray-400 hover:text-gray-900 hover:bg-gray-50" : "text-gray-400 hover:text-white hover:bg-white/5")
               )}
             >
               <item.icon size={22} className={cn(activeTab === item.id ? "text-brand-500" : "group-hover:text-brand-400")} />
@@ -2815,44 +2862,27 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-6 space-y-4">
-          <div className="hidden xl:block bg-white/5 rounded-2xl p-4 border border-white/10">
+        <div className="p-6 space-y-5">
+          <div className={cn("hidden xl:block rounded-2xl p-4 border", bgStyle === 'dark' ? "bg-gray-50 border-gray-200" : "bg-white/5 border-white/10")}>
             <div className="flex items-center gap-2 mb-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">目前工作空間</p>
             </div>
-            <p className="text-xs text-white font-medium truncate opacity-80" title={session?.user?.email}>
+            <p className={cn("text-xs font-medium truncate opacity-80", bgStyle === 'dark' ? "text-gray-900" : "text-white")} title={session?.user?.email}>
               {isGuest ? "訪客試用環境" : session?.user?.email}
             </p>
             <p className="text-[10px] text-gray-500 mt-1">資料庫：獨立隔離中</p>
           </div>
-          <div className="hidden xl:flex flex-wrap items-center gap-2 px-2 pb-2 border-b border-white/5">
-            {[
-              { id: 'orange', color: '#f97316', name: '橘色' },
-              { id: 'pink', color: '#ec4899', name: '粉色' },
-              { id: 'blue', color: '#3b82f6', name: '藍色' },
-              { id: 'emerald', color: '#10b981', name: '翠綠' },
-              { id: 'violet', color: '#8b5cf6', name: '紫羅蘭' },
-            ].map((t) => (
-              <button 
-                key={t.id}
-                onClick={() => setTheme(t.id as any)}
-                className={cn(
-                  "w-5 h-5 rounded-full ring-offset-2 ring-offset-[#111827] transition-all", 
-                  theme === t.id ? "ring-2 ring-white scale-110" : "hover:scale-110 opacity-50"
-                )}
-                style={{ backgroundColor: t.color }}
-                title={`${t.name}主題`}
-              />
-            ))}
-          </div>
-          <div className="hidden xl:block bg-white/5 rounded-2xl p-4 border border-white/10">
+          <div className={cn("hidden xl:block rounded-2xl p-4 border", bgStyle === 'dark' ? "bg-gray-50 border-gray-200" : "bg-white/5 border-white/10")}>
             <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest mb-1">Version 2.0</p>
-            <p className="text-xs text-gray-300">雲端同步已開啟</p>
+            <p className={cn("text-xs", bgStyle === 'dark' ? "text-gray-600" : "text-gray-300")}>雲端同步已開啟</p>
           </div>
           <button 
             onClick={handleSignOut}
-            className="w-full flex items-center justify-center xl:justify-start gap-4 p-4 xl:px-6 rounded-2xl transition-all duration-200 text-gray-400 hover:text-red-400 hover:bg-red-500/10 group"
+            className={cn(
+              "w-full flex items-center justify-center xl:justify-start gap-4 p-4 xl:px-6 rounded-2xl transition-all duration-200 group",
+              bgStyle === 'dark' ? "text-gray-400 hover:text-red-500 hover:bg-red-50" : "text-gray-400 hover:text-red-400 hover:bg-red-500/10"
+            )}
           >
             <LogOut size={20} />
             <span className="hidden xl:block font-medium">登出系統</span>
@@ -2913,33 +2943,12 @@ export default function App() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+              <h1 className={cn("text-3xl font-bold tracking-tight", curBg.text)}>
                 {sidebarItems.find(i => i.id === activeTab)?.label}
               </h1>
-              <p className="text-gray-500 mt-1">
+              <p className={cn("mt-1", bgStyle === 'dark' ? "text-slate-400" : "text-gray-500")}>
                 {activeTab === 'dashboard' ? '歡迎回來，今天又是充滿元氣的一天！' : `管理您的${sidebarItems.find(i => i.id === activeTab)?.label}`}
               </p>
-            </div>
-            
-            {/* Mobile Theme Selector */}
-            <div className="lg:hidden flex items-center gap-2 p-2 bg-white rounded-2xl border border-gray-100 shadow-sm w-fit">
-              {[
-                { id: 'orange', color: '#f97316' },
-                { id: 'pink', color: '#ec4899' },
-                { id: 'blue', color: '#3b82f6' },
-                { id: 'emerald', color: '#10b981' },
-                { id: 'violet', color: '#8b5cf6' },
-              ].map((t) => (
-                <button 
-                  key={t.id}
-                  onClick={() => setTheme(t.id as any)}
-                  className={cn(
-                    "w-6 h-6 rounded-full transition-all ring-offset-2", 
-                    theme === t.id ? "ring-2 ring-gray-200 scale-110" : "opacity-40 hover:opacity-100"
-                  )}
-                  style={{ backgroundColor: t.color }}
-                />
-              ))}
             </div>
           </div>
           
@@ -2965,8 +2974,8 @@ export default function App() {
             {activeTab === 'dashboard' && (
               <div className="space-y-8">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex flex-col xs:flex-row items-center gap-3 bg-white p-2 xs:pl-6 rounded-3xl border border-gray-100 shadow-sm w-full sm:w-auto">
-                    <div className="flex bg-gray-100 p-1 rounded-2xl w-full xs:w-auto">
+                  <div className={cn("flex flex-col xs:flex-row items-center gap-3 p-2 xs:pl-6 rounded-3xl shadow-sm w-full sm:w-auto border", curBg.card, curBg.border)}>
+                    <div className={cn("flex p-1 rounded-2xl w-full xs:w-auto", bgStyle === 'dark' ? "bg-white/10" : "bg-gray-100")}>
                       <button 
                         onClick={() => setDashViewType('month')}
                         className={cn("flex-1 xs:flex-none px-4 py-1.5 rounded-xl text-xs font-bold transition-all", dashViewType === 'month' ? "bg-white text-brand-600 shadow-sm" : "text-gray-500 hover:text-gray-700")}
@@ -3249,7 +3258,7 @@ export default function App() {
                           const prod = prods.find(p => p.id === item.商品ID);
                           return (
                             <tr key={item.id} className="hover:bg-gray-50/50 transition-colors group">
-                              <td className="px-6 py-4 text-sm text-gray-500 font-medium">{item.銷貨日期}</td>
+                              <td className="px-6 py-4 text-sm text-gray-500 font-medium">{formatDisplayDate(item.銷貨日期)}</td>
                               <td className="px-6 py-4">
                                 <span className="text-sm font-bold text-brand-600 block">{prod?.商品代號}</span>
                                 <span className="text-sm text-gray-700">{prod?.商品名稱}</span>
@@ -3284,7 +3293,7 @@ export default function App() {
                         <div key={item.id} className="py-4">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                               <p className="text-[10px] text-gray-400 font-bold mb-0.5">{item.銷貨日期}</p>
+                               <p className="text-[10px] text-gray-400 font-bold mb-0.5">{formatDisplayDate(item.銷貨日期)}</p>
                                <p className="text-sm font-bold text-gray-900">{prod?.商品名稱}</p>
                             </div>
                             <span className={cn(
@@ -3731,7 +3740,7 @@ export default function App() {
                       <tbody className="divide-y divide-gray-50">
                         {sortedOthers.slice((financePage - 1) * ITEMS_PER_PAGE, financePage * ITEMS_PER_PAGE).map(o => (
                           <tr key={o.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-6 py-5 text-sm text-gray-500 font-medium">{o.日期}</td>
+                            <td className="px-6 py-5 text-sm text-gray-500 font-medium">{formatDisplayDate(o.日期)}</td>
                             <td className="px-6 py-5">
                               <span className={cn(
                                 "px-2 py-0.5 rounded-lg text-[10px] font-bold uppercase mb-1 inline-block",
@@ -3771,7 +3780,7 @@ export default function App() {
                       <div key={o.id} className="py-4 space-y-3">
                         <div className="flex justify-between items-start">
                           <div className="space-y-1">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{o.日期}</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{formatDisplayDate(o.日期)}</p>
                             <span className={cn(
                               "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase inline-block",
                               o.收支類型 === '收入' ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-600"
@@ -3926,7 +3935,7 @@ export default function App() {
                           const prod = prods.find(pr => pr.id === p.商品ID);
                           return (
                             <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
-                              <td className="px-6 py-5 text-sm text-gray-500 font-medium">{p.進貨日期}</td>
+                              <td className="px-6 py-5 text-sm text-gray-500 font-medium">{formatDisplayDate(p.進貨日期)}</td>
                               <td className="px-6 py-5">
                                 <span className="text-xs font-bold text-brand-500 tracking-wider">#{prod?.商品代號}</span>
                                 <p className="font-bold text-gray-900">{prod?.商品名稱}</p>
@@ -3972,7 +3981,7 @@ export default function App() {
                         <div key={p.id} className="py-5 space-y-4">
                           <div className="flex justify-between items-start">
                             <div className="space-y-1">
-                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{p.進貨日期}</p>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{formatDisplayDate(p.進貨日期)}</p>
                                <span className={cn(
                                   "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase inline-block mb-1",
                                   p.訂單狀態 === '已入庫' ? "bg-emerald-100 text-emerald-600" : "bg-blue-100 text-blue-600"
@@ -4085,7 +4094,7 @@ export default function App() {
                           "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
                           isPrivacyMode ? "bg-blue-500 text-white rotate-[360deg]" : "bg-gray-200 text-gray-400"
                         )}>
-                          <EyeOff size={20} />
+                           <EyeOff size={20} />
                         </div>
                         <div>
                           <p className="font-black text-gray-900">隱私模式 (Privacy Mode)</p>
@@ -4112,6 +4121,78 @@ export default function App() {
                           {isPrivacyMode && <Check size={14} className="text-blue-500" />}
                         </motion.div>
                       </button>
+                    </div>
+
+                    {/* Background Style Selection */}
+                    <div className="bg-gray-50 p-6 rounded-[2rem] border-2 border-transparent">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-gray-400">
+                          <LayoutDashboard size={20} />
+                        </div>
+                        <div>
+                          <p className="font-black text-gray-900">背景風格設定</p>
+                          <p className="text-xs font-bold text-gray-400 mt-0.5">自定義系統背景視覺風格</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { id: 'white', name: '極簡白', bg: '#F8F9FA', border: 'border-gray-200' },
+                          { id: 'pink', name: '柔和粉', bg: '#FFF1F2', border: 'border-rose-100' },
+                          { id: 'dark', name: '商務灰', bg: '#374151', border: 'border-white/30' }
+                        ].map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => setBgStyle(s.id as any)}
+                            className={cn(
+                              "flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all",
+                              bgStyle === s.id ? "bg-white border-brand-500 shadow-lg ring-4 ring-brand-500/10" : "bg-white/50 border-gray-100 hover:border-gray-200"
+                            )}
+                          >
+                            <div className={cn("w-full h-12 rounded-xl mb-1", s.border)} style={{ backgroundColor: s.bg }} />
+                            <span className="text-[11px] font-bold text-gray-600">{s.name}</span>
+                            {bgStyle === s.id && <Check size={12} className="text-brand-500" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Theme Color Selection */}
+                    <div className="bg-gray-50 p-6 rounded-[2rem] border-2 border-transparent">
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm text-gray-400">
+                          <Zap size={20} />
+                        </div>
+                        <div>
+                          <p className="font-black text-gray-900">主題色彩 (LOGO顏色)</p>
+                          <p className="text-xs font-bold text-gray-400 mt-0.5">點擊圓圈切換系統主視覺色調</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 px-2">
+                        {[
+                          { id: 'orange', color: '#f97316', name: '活力橘' },
+                          { id: 'pink', color: '#ec4899', name: '優雅粉' },
+                          { id: 'blue', color: '#3b82f6', name: '專業藍' },
+                          { id: 'emerald', color: '#10b981', name: '清新綠' },
+                          { id: 'violet', color: '#8b5cf6', name: '神祕紫' },
+                        ].map((t) => (
+                          <button 
+                            key={t.id}
+                            onClick={() => setTheme(t.id as any)}
+                            className={cn(
+                              "group relative flex flex-col items-center gap-2"
+                            )}
+                          >
+                            <div 
+                              className={cn(
+                                "w-10 h-10 rounded-full ring-offset-2 ring-offset-white transition-all shadow-md", 
+                                theme === t.id ? "ring-2 ring-brand-500 scale-110" : "hover:scale-110 opacity-60 hover:opacity-100"
+                              )}
+                              style={{ backgroundColor: t.color }}
+                            />
+                            <span className={cn("text-[10px] font-bold", theme === t.id ? "text-brand-600" : "text-gray-400")}>{t.name}</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="p-6 bg-amber-50 rounded-[2rem] border border-amber-100 border-dashed">
@@ -4280,7 +4361,7 @@ export default function App() {
                           return (
                             <tr key={s.id} className="hover:bg-gray-50/50 transition-colors">
                               <td className="px-6 py-5">
-                                <p className="text-xs text-gray-400 font-medium mb-1">{s.銷貨日期}</p>
+                                <p className="text-xs text-gray-400 font-medium mb-1">{formatDisplayDate(s.銷貨日期)}</p>
                                 <p className="font-black text-gray-900 tracking-tight">{s.訂單編號}</p>
                                 <span className="inline-block px-2 py-0.5 rounded-lg bg-gray-100 text-[10px] font-bold text-gray-500 mt-1 uppercase tracking-widest">
                                   {s.平台 || '未知平台'}
@@ -4339,7 +4420,7 @@ export default function App() {
                         <div key={s.id} className="py-5 space-y-4">
                           <div className="flex justify-between items-start">
                             <div className="space-y-1">
-                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{s.銷貨日期}</p>
+                              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{formatDisplayDate(s.銷貨日期)}</p>
                               <p className="text-sm font-black text-gray-900">{s.訂單編號}</p>
                               <span className="inline-block px-1.5 py-0.5 rounded-md bg-gray-100 text-[9px] font-bold text-gray-500 uppercase">
                                 {s.平台 || '未知平台'}
@@ -4671,8 +4752,11 @@ export default function App() {
             <form onSubmit={handleSaveFinance} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">日期</label>
-                  <input name="date" type="date" required defaultValue={editItem?.日期 || today()} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20" />
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">日期時間</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input name="date" type="date" required defaultValue={extractDate(editItem?.日期)} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20" />
+                    <input name="time" type="time" required defaultValue={extractTime(editItem?.日期)} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-emerald-500/20" />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">類型</label>
@@ -4747,8 +4831,11 @@ export default function App() {
           <Modal title={editItem ? "編輯進貨" : "新增進貨 (可批次輸入)"} isOpen={true} onClose={() => { setModalType(null); setBatchPurchases([]); }}>
             <form onSubmit={handleSavePurchase} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">進貨日期</label>
-                <input name="date" type="date" required defaultValue={editItem?.進貨日期 || today()} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500/20" />
+                <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">進貨日期時間</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input name="date" type="date" required defaultValue={extractDate(editItem?.進貨日期)} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500/20" />
+                  <input name="time" type="time" required defaultValue={extractTime(editItem?.進貨日期)} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-blue-500/20" />
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">選擇商品</label>
@@ -4880,10 +4967,13 @@ export default function App() {
         {modalType === 'sale' && (
           <Modal title={editItem ? "編輯訂單" : "新建訂單 (可批次輸入)"} isOpen={true} onClose={() => { setModalType(null); setBatchSales([]); }}>
             <form onSubmit={handleSaveSale} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷貨日期</label>
-                  <input name="date" type="date" required defaultValue={editItem?.銷貨日期 || today()} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2 col-span-2">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">銷貨日期時間</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input name="date" type="date" required defaultValue={extractDate(editItem?.銷貨日期)} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" />
+                    <input name="time" type="time" required defaultValue={extractTime(editItem?.銷貨日期)} className="w-full bg-gray-50 border-none rounded-2xl p-4 text-sm focus:ring-2 focus:ring-brand-500/20" />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">訂單編號</label>
