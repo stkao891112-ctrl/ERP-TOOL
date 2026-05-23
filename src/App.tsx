@@ -888,7 +888,7 @@ export default function App() {
   }, [theme, brandHex]);
 
   // --- Data Fetching Utils ---
-  const fetchAll = async (tableName: string, orderCol: string, ascending = false, secondaryOrder?: { col: string, asc: boolean }) => {
+  const fetchAll = async (tableName: string, orderCol: string, ascending = false, secondaryOrder?: { col: string, asc: boolean }, filter?: { col: string, val: any }) => {
     if (!session?.user?.id) return [];
     let allData: any[] = [];
     let from = 0;
@@ -901,6 +901,10 @@ export default function App() {
         .eq('user_id', session.user.id) // 關鍵：只抓取屬於當前使用者的資料
         .order(orderCol, { ascending })
         .range(from, to);
+      
+      if (filter) {
+        query = query.eq(filter.col, filter.val);
+      }
       
       if (secondaryOrder) {
         query = query.order(secondaryOrder.col, { ascending: secondaryOrder.asc });
@@ -1116,13 +1120,11 @@ export default function App() {
   const syncInventory = async (prodId: string) => {
     if (!prodId) return;
     try {
-      // 1. 抓取進貨數據 (使用 fetchAll 確保抓取全量資料)
-      const purData = await fetchAll('進貨表', '進貨日期', true, { col: '建立時間', asc: true });
-      const filteredPur = purData.filter((p: any) => p.商品ID === prodId);
+      // 1. 抓取進貨數據 (僅抓取該商品的特定資料)
+      const filteredPur = await fetchAll('進貨表', '進貨日期', true, { col: '建立時間', asc: true }, { col: '商品ID', val: prodId });
 
-      // 2. 抓取銷貨數據
-      const saleData = await fetchAll('銷貨表', '銷貨日期', true, { col: '訂單編號', asc: true });
-      const filteredSale = saleData.filter((s: any) => s.商品ID === prodId);
+      // 2. 抓取銷貨數據 (僅抓取該商品的特定資料)
+      const filteredSale = await fetchAll('銷貨表', '銷貨日期', true, { col: '訂單編號', asc: true }, { col: '商品ID', val: prodId });
 
       // FIFO 進貨池
       const purchasePool = filteredPur.map((p: any) => ({
@@ -2036,10 +2038,8 @@ export default function App() {
           setImportProgress(60);
           // 同步庫存
           const uniqueIds = Array.from(new Set(validItems.map(v => v.商品ID)));
-          for (let i = 0; i < uniqueIds.length; i++) {
-            await syncInventory(uniqueIds[i]);
-            setImportProgress(60 + Math.round(((i + 1) / uniqueIds.length) * 40)); // 後 40% 同步
-          }
+          await Promise.all(uniqueIds.map(id => syncInventory(id)));
+          setImportProgress(100);
 
           setImportSuccessInfo({ count: validItems.length, type: '進貨' });
           setModalType('importSuccess');
@@ -2204,10 +2204,8 @@ export default function App() {
           if (error) throw error;
 
           const uniqueIds = Array.from(new Set(validItems.map(v => v.商品ID)));
-          for (let i = 0; i < uniqueIds.length; i++) {
-            await syncInventory(uniqueIds[i]);
-            setImportProgress(60 + Math.round(((i + 1) / uniqueIds.length) * 40));
-          }
+          await Promise.all(uniqueIds.map(id => syncInventory(id)));
+          setImportProgress(100);
 
           setImportSuccessInfo({ count: finalInsertData.length, type: '銷貨' });
           setModalType('importSuccess');
@@ -2678,11 +2676,9 @@ export default function App() {
     setIsLoadingBatches(true);
     setSaleBatchResults([]);
     try {
-      const purData = await fetchAll('進貨表', '進貨日期', true, { col: '建立時間', asc: true });
-      const filteredPur = purData.filter(p => p.商品ID === sale.商品ID);
-      
-      const saleData = await fetchAll('銷貨表', '銷貨日期', true, { col: '訂單編號', asc: true });
-      const filteredSale = saleData.filter(s => s.商品ID === sale.商品ID);
+      // 僅抓取該商品的特定資料
+      const filteredPur = await fetchAll('進貨表', '進貨日期', true, { col: '建立時間', asc: true }, { col: '商品ID', val: sale.商品ID });
+      const filteredSale = await fetchAll('銷貨表', '銷貨日期', true, { col: '訂單編號', asc: true }, { col: '商品ID', val: sale.商品ID });
 
       const purchasePool = filteredPur.map(p => ({
         id: p.id,
