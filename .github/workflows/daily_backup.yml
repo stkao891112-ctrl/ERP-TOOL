@@ -38,8 +38,23 @@ jobs:
           git config --local user.name "GitHub Action"
           git config --local core.quotepath false
           
+          # 備份生成的資料夾
+          if [ -d "backups" ]; then
+            cp -r backups /tmp/backups_temp
+          fi
+          
+          # 切換到 backup 分支
+          git fetch origin backup || git branch backup
+          git checkout backup || git checkout -b backup
+          
+          # 從暫存區帶回備份資料
+          if [ -d "/tmp/backups_temp" ]; then
+            mkdir -p backups
+            cp -r /tmp/backups_temp/* backups/
+          fi
+          
           # 檢查是否有變動
-          git add -A
+          git add backups/
           
           if git diff --staged --quiet; then
             echo "數據無變動，無需提交。"
@@ -47,8 +62,6 @@ jobs:
             # 提交變動
             git commit -m "Auto-backup: $(date +'%Y-%m-%d %H:%M:%S')"
             
-            # 使用 --autostash 處理拉取時可能產生的意外未暫存變動
-            # 並且在推送到遠端之前先獲取最新的變動
-            git pull origin main --rebase --autostash
-            git push origin main
+            # 推送到 backup 分支
+            git push origin backup
           fi
