@@ -1,9 +1,8 @@
 name: Daily Supabase Backup
 on:
   schedule:
-    # 每天台北時間 04:00 (UTC 20:00) 執行
     - cron: '0 20 * * *'
-  workflow_dispatch: # 允許手動觸發
+  workflow_dispatch:
 jobs:
   backup:
     runs-on: ubuntu-latest
@@ -34,7 +33,7 @@ jobs:
 
           TODAY=$(date +'%Y-%m-%d')
 
-          # 把備份存到 /tmp 的日期子資料夾
+          # 把 backup.js 產生的 backups/ 內容存到 /tmp 日期資料夾
           if [ -d "backups" ]; then
             mkdir -p /tmp/backups_temp/${TODAY}
             cp -r backups/* /tmp/backups_temp/${TODAY}/
@@ -43,12 +42,12 @@ jobs:
             exit 1
           fi
 
-          # 切換到 backups 分支並同步遠端
-          git fetch origin backups
-          git checkout backups
-          git reset --hard origin/backups
+          # 切換到 backup 分支並同步遠端
+          git fetch origin backup
+          git checkout backup
+          git reset --hard origin/backup
 
-          # 還原備份到日期資料夾
+          # 還原備份到日期子資料夾（不覆蓋舊資料）
           mkdir -p backups/${TODAY}
           cp -r /tmp/backups_temp/${TODAY}/* backups/${TODAY}/
 
@@ -58,5 +57,5 @@ jobs:
             echo "數據無變動，無需提交。"
           else
             git commit -m "Auto-backup: ${TODAY}"
-            git push origin backups
+            git push origin backup
           fi
