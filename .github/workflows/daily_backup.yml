@@ -42,6 +42,9 @@ jobs:
             exit 1
           fi
 
+          # 刪除會衝突的 untracked 檔案
+          rm -rf backups/
+
           # 切換到 backup 分支並同步遠端
           git fetch origin backup
           git checkout backup
